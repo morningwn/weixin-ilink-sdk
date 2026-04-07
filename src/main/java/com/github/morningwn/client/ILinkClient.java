@@ -33,6 +33,8 @@ import org.asynchttpclient.Dsl;
 import org.asynchttpclient.Request;
 import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +48,8 @@ import java.util.concurrent.ExecutionException;
  * Core HTTP client for WeChat iLink Bot API.
  */
 public class ILinkClient {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ILinkClient.class);
 
     private static final String CONTENT_TYPE_JSON = "application/json";
     private static final String CONTENT_TYPE_OCTET_STREAM = "application/octet-stream";
@@ -89,6 +93,7 @@ public class ILinkClient {
      */
     public QrCodeResponse getBotQrcode() {
         String path = "/ilink/bot/get_bot_qrcode?bot_type=" + config.getBotType();
+        LOG.debug("Requesting bot qrcode, botType={}", config.getBotType());
         Request request = withLoginHeaders(new RequestBuilder("GET")
             .setUrl(buildUrl(config.getBaseUrl(), path))
             .setRequestTimeout(config.getRequestTimeout()))
@@ -117,6 +122,7 @@ public class ILinkClient {
     public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl) {
         requireNonBlank(qrcode, "qrcode");
         String path = "/ilink/bot/get_qrcode_status?qrcode=" + urlEncode(qrcode);
+        LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
         Request request = withLoginHeaders(new RequestBuilder("GET")
             .setUrl(buildUrl(baseUrl, path))
             .setRequestTimeout(config.getRequestTimeout()))
@@ -143,6 +149,8 @@ public class ILinkClient {
         if (baseUrl == null || baseUrl.isBlank()) {
             baseUrl = config.getBaseUrl();
         }
+        LOG.info("Auth session confirmed, botId={}, userId={}, baseUrl={}",
+            statusResponse.ilinkBotId(), statusResponse.ilinkUserId(), baseUrl);
         return new ILinkAuthSession(
                 statusResponse.botToken(),
                 baseUrl,
@@ -223,8 +231,11 @@ public class ILinkClient {
         requireNonBlank(text, "text");
 
         List<String> chunks = TextChunker.split(text);
+        LOG.info("Sending text message in {} chunk(s), toUserId={}", chunks.size(), toUserId);
         List<SendMessageResponse> responses = new ArrayList<>(chunks.size());
-        for (String chunk : chunks) {
+        for (int i = 0; i < chunks.size(); i++) {
+            String chunk = chunks.get(i);
+            LOG.debug("Sending text chunk {}/{}, length={}", i + 1, chunks.size(), chunk.length());
             MessageItem item = new MessageItem(
                     ProtocolValues.ITEM_TYPE_TEXT,
                     null,
@@ -377,6 +388,8 @@ public class ILinkClient {
                     + "&filekey=" + urlEncode(fileKey);
         }
 
+        LOG.info("Uploading encrypted media to CDN, payloadSize={} bytes", encryptedBytes.length);
+
         Request request = new RequestBuilder("POST")
             .setUrl(target)
             .setHeader("Content-Type", CONTENT_TYPE_OCTET_STREAM)
@@ -387,6 +400,8 @@ public class ILinkClient {
         Response response = sendResponse(request);
         assertHttpSuccess(response.getStatusCode(), "CDN upload failed");
         String encryptedParam = response.getHeader("x-encrypted-param");
+        LOG.debug("CDN upload succeeded, status={}, hasEncryptedParam={}",
+            response.getStatusCode(), encryptedParam != null && !encryptedParam.isBlank());
         return new CdnUploadResult(response.getStatusCode(), encryptedParam);
     }
 
@@ -408,12 +423,16 @@ public class ILinkClient {
                     + "/download?encrypted_query_param=" + urlEncode(media.encryptQueryParam());
         }
 
+        LOG.debug("Downloading encrypted media from CDN");
+
         Request request = new RequestBuilder("GET")
             .setUrl(target)
             .setRequestTimeout(config.getRequestTimeout())
                 .build();
         Response response = sendResponse(request);
         assertHttpSuccess(response.getStatusCode(), "CDN download failed");
+        LOG.debug("CDN download succeeded, status={}, size={} bytes",
+            response.getStatusCode(), response.getResponseBodyAsBytes().length);
         return response.getResponseBodyAsBytes();
     }
 
@@ -471,6 +490,9 @@ public class ILinkClient {
 
         withOptionalHeaders(builder);
 
+    LOG.debug("Sending business request, path={}, timeoutMs={}",
+        path,
+        (timeout == null ? config.getRequestTimeout() : timeout).toMillis());
         Response response = sendResponse(builder.build());
         assertHttpSuccess(response.getStatusCode(), "Business request failed");
         return jsonCodec.fromJson(response.getResponseBody(StandardCharsets.UTF_8), responseType);
@@ -494,13 +516,19 @@ public class ILinkClient {
     }
 
     private Response sendResponse(Request request) {
+        LOG.debug("Executing HTTP request: {} {}", request.getMethod(), request.getUri().getPath());
         try {
-            return httpClient.executeRequest(request).get();
+            Response response = httpClient.executeRequest(request).get();
+            LOG.debug("HTTP response received: {} {}, status={}",
+                    request.getMethod(), request.getUri().getPath(), response.getStatusCode());
+            return response;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            LOG.warn("HTTP request interrupted: {} {}", request.getMethod(), request.getUri().getPath(), e);
             throw new ILinkException("HTTP request interrupted", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
+            LOG.error("HTTP request failed: {} {}", request.getMethod(), request.getUri().getPath(), cause);
             throw new ILinkException("HTTP request failed", cause);
         }
     }
@@ -530,6 +558,7 @@ public class ILinkClient {
 
     private static void assertHttpSuccess(int statusCode, String message) {
         if (statusCode < 200 || statusCode >= 300) {
+            LOG.warn("HTTP status indicates failure, status={}, message={}", statusCode, message);
             throw new ILinkProtocolException(message + ", status=" + statusCode, null, null, statusCode);
         }
     }
@@ -547,8 +576,12 @@ public class ILinkClient {
         boolean sessionExpired = ProtocolValues.RET_SESSION_EXPIRED == effectiveRet
                 || ProtocolValues.RET_SESSION_EXPIRED == effectiveErr;
         if (sessionExpired) {
+            LOG.warn("Business request session expired, ret={}, errcode={}, status={}",
+                effectiveRet, effectiveErr, statusCode);
             throw new SessionExpiredException(message, effectiveRet, effectiveErr, statusCode);
         }
+        LOG.warn("Business request failed, ret={}, errcode={}, status={}, errmsg={}",
+            effectiveRet, effectiveErr, statusCode, message);
         throw new ILinkProtocolException(message, effectiveRet, effectiveErr, statusCode);
     }
 }

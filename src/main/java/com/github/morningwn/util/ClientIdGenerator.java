@@ -1,5 +1,7 @@
 package com.github.morningwn.util;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.UUID;
 
 /**
@@ -17,7 +19,7 @@ public final class ClientIdGenerator {
      * @return generated client id
      */
     public static String generate(String prefix) {
-        String safePrefix = (prefix == null || prefix.isBlank()) ? "weixin-ilink" : prefix;
+        String safePrefix = StringUtils.defaultIfBlank(prefix, "weixin-ilink");
         String random = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         return safePrefix + ":" + System.currentTimeMillis() + "-" + random;
     }

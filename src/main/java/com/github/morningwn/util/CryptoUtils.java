@@ -1,6 +1,7 @@
 package com.github.morningwn.util;
 
 import com.github.morningwn.exception.ILinkException;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -58,7 +59,7 @@ public final class CryptoUtils {
      * @return decoded 16-byte AES key
      */
     public static byte[] decodeCompatibleAesKey(String encodedAesKey) {
-        if (encodedAesKey == null || encodedAesKey.isBlank()) {
+        if (StringUtils.isBlank(encodedAesKey)) {
             throw new ILinkException("aes_key cannot be null or blank");
         }
         byte[] decoded;
@@ -72,11 +73,11 @@ public final class CryptoUtils {
             return decoded;
         }
         if (decoded.length == 32) {
-            String maybeHex = new String(decoded, StandardCharsets.US_ASCII);
-            if (!maybeHex.matches("^[0-9a-fA-F]{32}$")) {
-                throw new ILinkException("32-byte aes_key payload is not valid hex ascii");
+            try {
+                return HexUtils.fromHex(new String(decoded, StandardCharsets.US_ASCII));
+            } catch (ILinkException e) {
+                throw new ILinkException("32-byte aes_key payload is not valid hex ascii", e);
             }
-            return HexUtils.fromHex(maybeHex);
         }
 
         throw new ILinkException("Unsupported aes_key decoded length: " + decoded.length);
