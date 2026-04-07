@@ -14,7 +14,6 @@
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jackson.version>3.1.1</jackson.version>
-        <async-http-client.version>3.0.8</async-http-client.version>
         <junit.version>5.11.4</junit.version>
     </properties>
 
@@ -31,12 +30,6 @@
         <dependency>
             <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.asynchttpclient</groupId>
-            <artifactId>async-http-client</artifactId>
-            <version>${async-http-client.version}</version>
         </dependency>
 
         <dependency>

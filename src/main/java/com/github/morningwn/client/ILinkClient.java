@@ -28,21 +28,21 @@ import com.github.morningwn.util.CryptoUtils;
 import com.github.morningwn.util.HexUtils;
 import com.github.morningwn.util.TextChunker;
 import com.github.morningwn.util.WechatUinGenerator;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.Dsl;
-import org.asynchttpclient.Request;
-import org.asynchttpclient.RequestBuilder;
-import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Core HTTP client for WeChat iLink Bot API.
@@ -54,9 +54,48 @@ public class ILinkClient implements AutoCloseable {
     private static final String CONTENT_TYPE_JSON = "application/json";
     private static final String CONTENT_TYPE_OCTET_STREAM = "application/octet-stream";
     private static final String AUTHORIZATION_TYPE = "ilink_bot_token";
+    private static final String AUTHORIZATION_BEARER_PREFIX = "Bearer ";
+
+    private static final String HEADER_CONTENT_TYPE = "Content-Type";
+    private static final String HEADER_AUTHORIZATION_TYPE = "AuthorizationType";
+    private static final String HEADER_AUTHORIZATION = "Authorization";
+    private static final String HEADER_WECHAT_UIN = "X-WECHAT-UIN";
+    private static final String HEADER_APP_ID = "iLink-App-Id";
+    private static final String HEADER_APP_CLIENT_VERSION = "iLink-App-ClientVersion";
+    private static final String HEADER_ROUTE_TAG = "SKRouteTag";
+    private static final String HEADER_ENCRYPTED_PARAM = "x-encrypted-param";
+
+    private static final String PARAM_BOT_TYPE = "bot_type";
+    private static final String PARAM_QRCODE = "qrcode";
+    private static final String PARAM_ENCRYPTED_QUERY_PARAM = "encrypted_query_param";
+    private static final String PARAM_FILE_KEY = "filekey";
+
+    private static final String PATH_GET_BOT_QRCODE = "/ilink/bot/get_bot_qrcode";
+    private static final String PATH_GET_QRCODE_STATUS = "/ilink/bot/get_qrcode_status";
+    private static final String PATH_GET_UPDATES = "/ilink/bot/getupdates";
+    private static final String PATH_SEND_MESSAGE = "/ilink/bot/sendmessage";
+    private static final String PATH_GET_CONFIG = "/ilink/bot/getconfig";
+    private static final String PATH_SEND_TYPING = "/ilink/bot/sendtyping";
+    private static final String PATH_GET_UPLOAD_URL = "/ilink/bot/getuploadurl";
+    private static final String PATH_CDN_UPLOAD = "/upload";
+    private static final String PATH_CDN_DOWNLOAD = "/download";
+
+    private static final String QUERY_SEPARATOR = "?";
+    private static final String QUERY_ASSIGN = "=";
+    private static final String QUERY_AND = "&";
+
+    private static final int HTTP_STATUS_OK = 200;
+    private static final int HTTP_STATUS_SUCCESS_MIN = 200;
+    private static final int HTTP_STATUS_SUCCESS_MAX_EXCLUSIVE = 300;
+
+    private static final String MESSAGE_HTTP_REQUEST_FAILED = "HTTP request failed";
+    private static final String MESSAGE_HTTP_REQUEST_INTERRUPTED = "HTTP request interrupted";
+    private static final String MESSAGE_BUSINESS_REQUEST_FAILED = "Business request failed";
+    private static final String MESSAGE_CDN_UPLOAD_FAILED = "CDN upload failed";
+    private static final String MESSAGE_CDN_DOWNLOAD_FAILED = "CDN download failed";
 
     private final ILinkClientConfig config;
-    private final AsyncHttpClient httpClient;
+    private final HttpClient httpClient;
     private final JsonCodec jsonCodec;
 
     /**
@@ -66,10 +105,9 @@ public class ILinkClient implements AutoCloseable {
      */
     public ILinkClient(ILinkClientConfig config) {
         this(config,
-            Dsl.asyncHttpClient(Dsl.config()
-                .setConnectTimeout(config.getConnectTimeout())
-                .setReadTimeout(config.getRequestTimeout())
-                .setRequestTimeout(config.getRequestTimeout())),
+            HttpClient.newBuilder()
+                .connectTimeout(config.getConnectTimeout())
+                .build(),
                 new JacksonJsonCodec());
     }
 
@@ -77,10 +115,10 @@ public class ILinkClient implements AutoCloseable {
      * Creates a client with provided dependencies.
      *
      * @param config client config
-     * @param httpClient async http client
+     * @param httpClient JDK http client
      * @param jsonCodec json codec
      */
-    public ILinkClient(ILinkClientConfig config, AsyncHttpClient httpClient, JsonCodec jsonCodec) {
+    public ILinkClient(ILinkClientConfig config, HttpClient httpClient, JsonCodec jsonCodec) {
         this.config = Objects.requireNonNull(config, "config cannot be null");
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient cannot be null");
         this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec cannot be null");
@@ -92,11 +130,12 @@ public class ILinkClient implements AutoCloseable {
      * @return qr code payload
      */
     public QrCodeResponse getBotQrcode() {
-        String path = "/ilink/bot/get_bot_qrcode?bot_type=" + config.getBotType();
+        String path = PATH_GET_BOT_QRCODE + QUERY_SEPARATOR + PARAM_BOT_TYPE + QUERY_ASSIGN + config.getBotType();
         LOG.debug("Requesting bot qrcode, botType={}", config.getBotType());
-        Request request = withLoginHeaders(new RequestBuilder("GET")
-            .setUrl(buildUrl(config.getBaseUrl(), path))
-            .setRequestTimeout(config.getRequestTimeout()))
+        HttpRequest request = withLoginHeaders(HttpRequest.newBuilder()
+            .uri(URI.create(buildUrl(config.getBaseUrl(), path)))
+            .timeout(config.getRequestTimeout())
+            .GET())
                 .build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeResponse.class);
@@ -121,11 +160,12 @@ public class ILinkClient implements AutoCloseable {
      */
     public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl) {
         requireNonBlank(qrcode, "qrcode");
-        String path = "/ilink/bot/get_qrcode_status?qrcode=" + urlEncode(qrcode);
+        String path = PATH_GET_QRCODE_STATUS + QUERY_SEPARATOR + PARAM_QRCODE + QUERY_ASSIGN + urlEncode(qrcode);
         LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
-        Request request = withLoginHeaders(new RequestBuilder("GET")
-            .setUrl(buildUrl(baseUrl, path))
-            .setRequestTimeout(config.getRequestTimeout()))
+        HttpRequest request = withLoginHeaders(HttpRequest.newBuilder()
+            .uri(URI.create(buildUrl(baseUrl, path)))
+            .timeout(config.getRequestTimeout())
+            .GET())
                 .build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeStatusResponse.class);
@@ -175,13 +215,13 @@ public class ILinkClient implements AutoCloseable {
         );
         GetUpdatesResponse response = postBusiness(
                 session.baseUrl(),
-                "/ilink/bot/getupdates",
+                PATH_GET_UPDATES,
                 session.token(),
                 request,
                 config.getLongPollingTimeout(),
                 GetUpdatesResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), 200);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
         return response;
     }
 
@@ -198,13 +238,13 @@ public class ILinkClient implements AutoCloseable {
         SendMessageRequest request = new SendMessageRequest(msg, BaseInfo.of(config.getChannelVersion()));
         SendMessageResponse response = postBusiness(
                 session.baseUrl(),
-                "/ilink/bot/sendmessage",
+                PATH_SEND_MESSAGE,
                 session.token(),
                 request,
                 config.getRequestTimeout(),
                 SendMessageResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), 200);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
         return response;
     }
 
@@ -288,13 +328,13 @@ public class ILinkClient implements AutoCloseable {
         );
         GetConfigResponse response = postBusiness(
                 session.baseUrl(),
-                "/ilink/bot/getconfig",
+                PATH_GET_CONFIG,
                 session.token(),
                 request,
                 config.getRequestTimeout(),
                 GetConfigResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), 200);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
         return response;
     }
 
@@ -328,13 +368,13 @@ public class ILinkClient implements AutoCloseable {
         );
         SendTypingResponse response = postBusiness(
                 session.baseUrl(),
-                "/ilink/bot/sendtyping",
+                PATH_SEND_TYPING,
                 session.token(),
                 request,
                 config.getRequestTimeout(),
                 SendTypingResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), 200);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
         return response;
     }
 
@@ -350,13 +390,13 @@ public class ILinkClient implements AutoCloseable {
         Objects.requireNonNull(request, "request cannot be null");
         GetUploadUrlResponse response = postBusiness(
                 session.baseUrl(),
-                "/ilink/bot/getuploadurl",
+                PATH_GET_UPLOAD_URL,
                 session.token(),
                 request,
                 config.getRequestTimeout(),
                 GetUploadUrlResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), 200);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
         return response;
     }
 
@@ -384,25 +424,25 @@ public class ILinkClient implements AutoCloseable {
         } else {
             requireNonBlank(uploadParam, "uploadParam");
             target = config.getCdnBaseUrl()
-                    + "/upload?encrypted_query_param=" + urlEncode(uploadParam)
-                    + "&filekey=" + urlEncode(fileKey);
+                    + PATH_CDN_UPLOAD + QUERY_SEPARATOR + PARAM_ENCRYPTED_QUERY_PARAM + QUERY_ASSIGN + urlEncode(uploadParam)
+                    + QUERY_AND + PARAM_FILE_KEY + QUERY_ASSIGN + urlEncode(fileKey);
         }
 
         LOG.info("Uploading encrypted media to CDN, payloadSize={} bytes", encryptedBytes.length);
 
-        Request request = new RequestBuilder("POST")
-            .setUrl(target)
-            .setHeader("Content-Type", CONTENT_TYPE_OCTET_STREAM)
-            .setBody(encryptedBytes)
-            .setRequestTimeout(config.getRequestTimeout())
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(target))
+            .timeout(config.getRequestTimeout())
+            .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_OCTET_STREAM)
+            .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
                 .build();
 
-        Response response = sendResponse(request);
-        assertHttpSuccess(response.getStatusCode(), "CDN upload failed");
-        String encryptedParam = response.getHeader("x-encrypted-param");
+        RawHttpResponse response = sendResponse(request);
+        assertHttpSuccess(response.statusCode(), MESSAGE_CDN_UPLOAD_FAILED);
+        String encryptedParam = response.headers().firstValue(HEADER_ENCRYPTED_PARAM).orElse(null);
         LOG.debug("CDN upload succeeded, status={}, hasEncryptedParam={}",
-            response.getStatusCode(), encryptedParam != null && !encryptedParam.isBlank());
-        return new CdnUploadResult(response.getStatusCode(), encryptedParam);
+            response.statusCode(), encryptedParam != null && !encryptedParam.isBlank());
+        return new CdnUploadResult(response.statusCode(), encryptedParam);
     }
 
     /**
@@ -420,20 +460,21 @@ public class ILinkClient implements AutoCloseable {
         } else {
             requireNonBlank(media.encryptQueryParam(), "media.encryptQueryParam");
             target = config.getCdnBaseUrl()
-                    + "/download?encrypted_query_param=" + urlEncode(media.encryptQueryParam());
+                    + PATH_CDN_DOWNLOAD + QUERY_SEPARATOR + PARAM_ENCRYPTED_QUERY_PARAM + QUERY_ASSIGN + urlEncode(media.encryptQueryParam());
         }
 
         LOG.debug("Downloading encrypted media from CDN");
 
-        Request request = new RequestBuilder("GET")
-            .setUrl(target)
-            .setRequestTimeout(config.getRequestTimeout())
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(target))
+            .timeout(config.getRequestTimeout())
+            .GET()
                 .build();
-        Response response = sendResponse(request);
-        assertHttpSuccess(response.getStatusCode(), "CDN download failed");
+        RawHttpResponse response = sendResponse(request);
+        assertHttpSuccess(response.statusCode(), MESSAGE_CDN_DOWNLOAD_FAILED);
         LOG.debug("CDN download succeeded, status={}, size={} bytes",
-            response.getStatusCode(), response.getResponseBodyAsBytes().length);
-        return response.getResponseBodyAsBytes();
+            response.statusCode(), response.body().length);
+        return response.body();
     }
 
     /**
@@ -478,65 +519,63 @@ public class ILinkClient implements AutoCloseable {
     ) {
         requireNonBlank(token, "token");
         String json = jsonCodec.toJson(payload);
-        RequestBuilder builder = new RequestBuilder("POST")
-                .setUrl(buildUrl(baseUrl, path))
-                .setHeader("Content-Type", CONTENT_TYPE_JSON)
-                .setHeader("AuthorizationType", AUTHORIZATION_TYPE)
-                .setHeader("Authorization", "Bearer " + token)
-                .setHeader("X-WECHAT-UIN", WechatUinGenerator.randomWechatUin())
-                .setBody(json)
-                .setCharset(StandardCharsets.UTF_8)
-                .setRequestTimeout(timeout == null ? config.getRequestTimeout() : timeout);
+        Duration effectiveTimeout = timeout == null ? config.getRequestTimeout() : timeout;
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(buildUrl(baseUrl, path)))
+                .timeout(effectiveTimeout)
+                .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
+                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
+                .header(HEADER_AUTHORIZATION, AUTHORIZATION_BEARER_PREFIX + token)
+                .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
+                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
 
         withOptionalHeaders(builder);
 
-    LOG.debug("Sending business request, path={}, timeoutMs={}",
-        path,
-        (timeout == null ? config.getRequestTimeout() : timeout).toMillis());
-        Response response = sendResponse(builder.build());
-        assertHttpSuccess(response.getStatusCode(), "Business request failed");
-        return jsonCodec.fromJson(response.getResponseBody(StandardCharsets.UTF_8), responseType);
+        LOG.debug("Sending business request, path={}, timeoutMs={}", path, effectiveTimeout.toMillis());
+        RawHttpResponse response = sendResponse(builder.build());
+        assertHttpSuccess(response.statusCode(), MESSAGE_BUSINESS_REQUEST_FAILED);
+        return jsonCodec.fromJson(response.bodyText(), responseType);
     }
 
-    private RequestBuilder withLoginHeaders(RequestBuilder builder) {
+    private HttpRequest.Builder withLoginHeaders(HttpRequest.Builder builder) {
         return withOptionalHeaders(builder);
     }
 
-    private RequestBuilder withOptionalHeaders(RequestBuilder builder) {
+    private HttpRequest.Builder withOptionalHeaders(HttpRequest.Builder builder) {
         if (config.getAppId() != null && !config.getAppId().isBlank()) {
-            builder.setHeader("iLink-App-Id", config.getAppId());
+            builder.header(HEADER_APP_ID, config.getAppId());
         }
         if (config.getAppClientVersion() != null && !config.getAppClientVersion().isBlank()) {
-            builder.setHeader("iLink-App-ClientVersion", config.getAppClientVersion());
+            builder.header(HEADER_APP_CLIENT_VERSION, config.getAppClientVersion());
         }
         if (config.getRouteTag() != null && !config.getRouteTag().isBlank()) {
-            builder.setHeader("SKRouteTag", config.getRouteTag());
+            builder.header(HEADER_ROUTE_TAG, config.getRouteTag());
         }
         return builder;
     }
 
-    private Response sendResponse(Request request) {
-        LOG.debug("Executing HTTP request: {} {}", request.getMethod(), request.getUri().getPath());
+    private RawHttpResponse sendResponse(HttpRequest request) {
+        String path = request.uri().getPath();
+        LOG.debug("Executing HTTP request: {} {}", request.method(), path);
         try {
-            Response response = httpClient.executeRequest(request).get();
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             LOG.debug("HTTP response received: {} {}, status={}",
-                    request.getMethod(), request.getUri().getPath(), response.getStatusCode());
-            return response;
+                    request.method(), path, response.statusCode());
+            return new RawHttpResponse(response.statusCode(), response.headers(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOG.warn("HTTP request interrupted: {} {}", request.getMethod(), request.getUri().getPath(), e);
-            throw new ILinkException("HTTP request interrupted", e);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            LOG.error("HTTP request failed: {} {}", request.getMethod(), request.getUri().getPath(), cause);
-            throw new ILinkException("HTTP request failed", cause);
+            LOG.warn("HTTP request interrupted: {} {}", request.method(), path, e);
+            throw new ILinkException(MESSAGE_HTTP_REQUEST_INTERRUPTED, e);
+        } catch (IOException e) {
+            LOG.error("HTTP request failed: {} {}", request.method(), path, e);
+            throw new ILinkException(MESSAGE_HTTP_REQUEST_FAILED, e);
         }
     }
 
-    private String sendText(Request request) {
-        Response response = sendResponse(request);
-        assertHttpSuccess(response.getStatusCode(), "HTTP request failed");
-        return response.getResponseBody(StandardCharsets.UTF_8);
+    private String sendText(HttpRequest request) {
+        RawHttpResponse response = sendResponse(request);
+        assertHttpSuccess(response.statusCode(), MESSAGE_HTTP_REQUEST_FAILED);
+        return response.bodyText();
     }
 
     private String buildUrl(String baseUrl, String path) {
@@ -557,7 +596,7 @@ public class ILinkClient implements AutoCloseable {
     }
 
     private static void assertHttpSuccess(int statusCode, String message) {
-        if (statusCode < 200 || statusCode >= 300) {
+        if (statusCode < HTTP_STATUS_SUCCESS_MIN || statusCode >= HTTP_STATUS_SUCCESS_MAX_EXCLUSIVE) {
             LOG.warn("HTTP status indicates failure, status={}, message={}", statusCode, message);
             throw new ILinkProtocolException(message + ", status=" + statusCode, null, null, statusCode);
         }
@@ -571,7 +610,7 @@ public class ILinkClient implements AutoCloseable {
         }
         Integer effectiveRet = ret != null ? ret : errcode;
         Integer effectiveErr = errcode != null ? errcode : ret;
-        String message = errmsg == null || errmsg.isBlank() ? "Business request failed" : errmsg;
+        String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
 
         boolean sessionExpired = ProtocolValues.RET_SESSION_EXPIRED == effectiveRet
                 || ProtocolValues.RET_SESSION_EXPIRED == effectiveErr;
@@ -586,14 +625,17 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
-     * Closes the underlying HTTP client and releases network resources.
+     * JDK HTTP client does not require explicit close.
      */
     @Override
     public void close() {
-        try {
-            httpClient.close();
-        } catch (Exception e) {
-            throw new ILinkException("Failed to close HTTP client", e);
+        LOG.debug("ILinkClient closed");
+    }
+
+    private record RawHttpResponse(int statusCode, HttpHeaders headers, byte[] body) {
+
+        private String bodyText() {
+            return new String(body, StandardCharsets.UTF_8);
         }
     }
 }
