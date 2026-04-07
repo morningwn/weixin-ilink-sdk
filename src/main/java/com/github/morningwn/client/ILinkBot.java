@@ -62,17 +62,8 @@ public final class ILinkBot implements AutoCloseable {
     private final ExecutorService pullExecutor;
     private volatile Future<?> pullTask;
     private volatile String getUpdatesBuf = "";
-    private volatile ILinkAuthSession session;
 
-    /**
-     * Creates a bot facade with internal {@link ILinkClient}. Session will be restored by
-     * {@link SessionHandler} or created via QR scan on demand.
-     *
-     * @param config client config
-     */
-    public ILinkBot(ILinkClientConfig config) {
-        this(new ILinkClient(config), config, null, "weixin-ilink", true, null);
-    }
+    private volatile ILinkAuthSession session;
 
     /**
      * Creates a bot facade with internal {@link ILinkClient}. Session will be restored by
@@ -82,132 +73,71 @@ public final class ILinkBot implements AutoCloseable {
      * @param sessionHandler optional handler for session persistence and QR notification
      */
     public ILinkBot(ILinkClientConfig config, SessionHandler sessionHandler) {
-        this(new ILinkClient(config), config, null, "weixin-ilink", true, sessionHandler);
-    }
-
-    /**
-     * Creates a bot facade with internal {@link ILinkClient} and default client id prefix.
-     *
-     * @param config client config
-     * @param session auth session
-     */
-    public ILinkBot(ILinkClientConfig config, ILinkAuthSession session) {
-        this(new ILinkClient(config), config, session, "weixin-ilink", true, null);
+        this(new ILinkClient(config), config, "weixin-ilink", true, sessionHandler, null);
     }
 
     /**
      * Creates a bot facade with internal {@link ILinkClient}.
      *
-     * @param config client config
-     * @param session auth session, nullable
-     * @param sessionHandler optional handler for session persistence and QR notification
-     */
-    public ILinkBot(ILinkClientConfig config, ILinkAuthSession session, SessionHandler sessionHandler) {
-        this(new ILinkClient(config), config, session, "weixin-ilink", true, sessionHandler);
-    }
-
-    /**
-     * Creates a bot facade with internal {@link ILinkClient}.
-     *
-     * @param config client config
-     * @param session auth session
-     * @param clientIdPrefix sendmessage client_id prefix
-     */
-    public ILinkBot(ILinkClientConfig config, ILinkAuthSession session, String clientIdPrefix) {
-        this(new ILinkClient(config), config, session, clientIdPrefix, true, null);
-    }
-
-    /**
-     * Creates a bot facade with internal {@link ILinkClient}.
-     *
-     * @param config client config
-     * @param session auth session, nullable
+     * @param config         client config
      * @param clientIdPrefix sendmessage client_id prefix
      * @param sessionHandler optional handler for session persistence and QR notification
      */
     public ILinkBot(
             ILinkClientConfig config,
-            ILinkAuthSession session,
             String clientIdPrefix,
             SessionHandler sessionHandler
     ) {
-        this(new ILinkClient(config), config, session, clientIdPrefix, true, sessionHandler);
+        this(new ILinkClient(config), config, clientIdPrefix, true, sessionHandler, null);
     }
 
     /**
      * Creates a bot facade on top of an existing low-level client.
      *
-     * @param client low-level client
-     * @param config client config
-     * @param session auth session
-     */
-    public ILinkBot(ILinkClient client, ILinkClientConfig config, ILinkAuthSession session) {
-        this(client, config, session, "weixin-ilink", false, null);
-    }
-
-    /**
-     * Creates a bot facade on top of an existing low-level client.
-     *
-     * @param client low-level client
-     * @param config client config
-     * @param session auth session, nullable
+     * @param client         low-level client
+     * @param config         client config
      * @param sessionHandler optional handler for session persistence and QR notification
      */
     public ILinkBot(
             ILinkClient client,
             ILinkClientConfig config,
-            ILinkAuthSession session,
             SessionHandler sessionHandler
     ) {
-        this(client, config, session, "weixin-ilink", false, sessionHandler);
+        this(client, config, "weixin-ilink", false, sessionHandler, null);
     }
 
     /**
      * Creates a bot facade on top of an existing low-level client.
      *
-     * @param client low-level client
-     * @param config client config
-     * @param session auth session
-     * @param clientIdPrefix sendmessage client_id prefix
-     */
-    public ILinkBot(ILinkClient client, ILinkClientConfig config, ILinkAuthSession session, String clientIdPrefix) {
-        this(client, config, session, clientIdPrefix, false, null);
-    }
-
-    /**
-     * Creates a bot facade on top of an existing low-level client.
-     *
-     * @param client low-level client
-     * @param config client config
-     * @param session auth session, nullable
+     * @param client         low-level client
+     * @param config         client config
      * @param clientIdPrefix sendmessage client_id prefix
      * @param sessionHandler optional handler for session persistence and QR notification
      */
     public ILinkBot(
             ILinkClient client,
             ILinkClientConfig config,
-            ILinkAuthSession session,
             String clientIdPrefix,
             SessionHandler sessionHandler
     ) {
-        this(client, config, session, clientIdPrefix, false, sessionHandler);
+        this(client, config, clientIdPrefix, false, sessionHandler, null);
     }
 
     private ILinkBot(
             ILinkClient client,
             ILinkClientConfig config,
-            ILinkAuthSession session,
             String clientIdPrefix,
             boolean ownsClient,
-            SessionHandler sessionHandler
-    ) {
+            SessionHandler sessionHandler,
+            ExecutorService pullExecutor) {
         this.client = Objects.requireNonNull(client, "client cannot be null");
         this.config = Objects.requireNonNull(config, "config cannot be null");
+
         this.sessionHandler = sessionHandler;
         this.clientIdPrefix = clientIdPrefix == null || clientIdPrefix.isBlank() ? "weixin-ilink" : clientIdPrefix;
         this.ownsClient = ownsClient;
-        this.session = session != null ? session : loadSessionFromHandler();
-        this.pullExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        this.session = loadSessionFromHandler();
+        this.pullExecutor = pullExecutor != null ? pullExecutor : Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "ilink-auto-pull");
             thread.setDaemon(true);
             return thread;
@@ -637,9 +567,6 @@ public final class ILinkBot implements AutoCloseable {
     }
 
     private ILinkAuthSession loadSessionFromHandler() {
-        if (sessionHandler == null) {
-            return null;
-        }
         try {
             ILinkAuthSession loadedSession = sessionHandler.loadSession();
             if (loadedSession != null) {
