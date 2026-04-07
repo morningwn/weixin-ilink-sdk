@@ -47,7 +47,7 @@ import java.util.concurrent.ExecutionException;
 /**
  * Core HTTP client for WeChat iLink Bot API.
  */
-public class ILinkClient {
+public class ILinkClient implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(ILinkClient.class);
 
@@ -583,5 +583,17 @@ public class ILinkClient {
         LOG.warn("Business request failed, ret={}, errcode={}, status={}, errmsg={}",
             effectiveRet, effectiveErr, statusCode, message);
         throw new ILinkProtocolException(message, effectiveRet, effectiveErr, statusCode);
+    }
+
+    /**
+     * Closes the underlying HTTP client and releases network resources.
+     */
+    @Override
+    public void close() {
+        try {
+            httpClient.close();
+        } catch (Exception e) {
+            throw new ILinkException("Failed to close HTTP client", e);
+        }
     }
 }
