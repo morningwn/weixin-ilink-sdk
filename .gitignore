@@ -38,3 +38,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+.ilink-session.txt
+.ilink-web-downloads/

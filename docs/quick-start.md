@@ -106,3 +106,17 @@ public final class BotDemo {
 - 可直接运行的示例程序在 [src/test/java/com/github/morningwn/example/QuickStartExampleTest.java](src/test/java/com/github/morningwn/example/QuickStartExampleTest.java) 。
 - 程序启动后会自动拉消息，session 缺失/过期时会触发二维码登录，并使用 ZXing 在控制台打印可扫码二维码图案。
 - 程序会监听控制台输入；当收到用户消息后，输入文本并回车即可回复该用户（`/quit` 可退出）。
+
+## 可执行示例（Web）
+
+- Web 版示例程序在 [src/test/java/com/github/morningwn/example/WebQuickStartExampleTest.java](src/test/java/com/github/morningwn/example/WebQuickStartExampleTest.java) 。
+- 静态页面资源在 [src/test/resources/com/github/morningwn/example/web/quick-start-web.html](src/test/resources/com/github/morningwn/example/web/quick-start-web.html) 。
+- 启动命令：
+
+```bash
+mvn -q -DskipTests exec:java -Dexec.mainClass=com.github.morningwn.example.WebQuickStartExampleTest -Dexec.classpathScope=test
+```
+
+- 默认访问地址：`http://127.0.0.1:8088`（可通过程序第一个参数传入端口）。
+- 页面支持：扫码二维码登录、发送文本、发送图片、发送文件。
+- 自动接收并下载：文本/图片/语音/文件消息会展示在页面，图片/语音/文件会下载到本地目录 `.ilink-web-downloads`，并在页面提供下载链接。
