@@ -2,7 +2,7 @@
 
 > 适用对象：实现微信 iLink Bot / ClawBot 协议的 SDK、网关和独立 Bot。
 >
-> 整理依据：[epiral/weixin-bot](https://github.com/epiral/weixin-bot) 仓库 `PROTOCOL.md`、腾讯官方 `@tencent-weixin/openclaw-weixin` v1.0.2 源码、`m1heng/claude-plugin-weixin`、`hao-ji-xing/openclaw-weixin` 示例实现。
+> 整理依据：[epiral/weixin-bot](https://github.com/epiral/weixin-bot) 仓库 `PROTOCOL.md`、腾讯官方 `@tencent-weixin/openclaw-weixin` v2.1.6 源码、`m1heng/claude-plugin-weixin`、`hao-ji-xing/openclaw-weixin` 示例实现。
 >
 > 说明：文中标注"工程建议"的内容来自现有客户端实现经验，用于提高兼容性；它们不是服务端返回字段本身的一部分。
 
@@ -24,6 +24,8 @@
 
 | Header | 是否必需 | 说明 |
 | --- | --- | --- |
+| `iLink-App-Id` | 建议 | openclaw-weixin 2.x 默认发送 `bot`（来自包元数据 `ilink_appid`）。 |
+| `iLink-App-ClientVersion` | 建议 | openclaw-weixin 2.x 使用版本号编码值（见 3.4），例如 `2.1.6 -> 131334`。 |
 | `SKRouteTag` | 否 | 可选路由标签；仅在部署方要求时带上。 |
 
 **Body:** 无。
@@ -61,7 +63,8 @@ curl 'https://ilinkai.weixin.qq.com/ilink/bot/get_bot_qrcode?bot_type=3' \
 
 | Header | 是否必需 | 说明 |
 | --- | --- | --- |
-| `iLink-App-ClientVersion` | 是 | 现有实现固定传 `1`。 |
+| `iLink-App-Id` | 建议 | openclaw-weixin 2.x 默认发送 `bot`。 |
+| `iLink-App-ClientVersion` | 是 | 2.x 实现按 `0x00MMNNPP` 编码后转十进制字符串；例如 `2.1.6 -> 131334`。早期实现常见固定值 `1`。 |
 | `SKRouteTag` | 否 | 可选路由标签。 |
 
 **Body:** 无。
@@ -72,6 +75,7 @@ curl 'https://ilinkai.weixin.qq.com/ilink/bot/get_bot_qrcode?bot_type=3' \
 | --- | --- | --- |
 | `wait` | 未扫码，或本次长轮询在客户端超时后被视为"继续等待"。 | 继续轮询。 |
 | `scaned` | 已扫码，等待手机端确认。 | 继续轮询。 |
+| `scaned_but_redirect` | 已扫码，但服务端要求切换轮询 IDC 主机。 | 读取 `redirect_host`，后续轮询切到新主机。 |
 | `confirmed` | 用户已确认，返回正式凭证。 | 持久化凭证，进入业务阶段。 |
 | `expired` | 当前二维码过期。 | 重新调用 `get_bot_qrcode` 获取新二维码。 |
 
@@ -86,6 +90,13 @@ curl 'https://ilinkai.weixin.qq.com/ilink/bot/get_bot_qrcode?bot_type=3' \
 ```json
 {
   "status": "scaned"
+}
+```
+
+```json
+{
+  "status": "scaned_but_redirect",
+  "redirect_host": "ilinkai.example.weixin.qq.com"
 }
 ```
 
@@ -109,6 +120,7 @@ curl 'https://ilinkai.weixin.qq.com/ilink/bot/get_bot_qrcode?bot_type=3' \
 
 - 现有实现通常把客户端超时设置为 35 秒左右。
 - 若客户端本地超时并抛出 `AbortError`，多数实现会把这次轮询等价处理为 `{"status":"wait"}`，然后继续轮询。
+- 若返回 `scaned_but_redirect` 且携带 `redirect_host`，后续 `get_qrcode_status` 轮询应切换到 `https://{redirect_host}`。
 - 二维码自身有效期并未通过独立字段下发；通常在拿到 `expired` 后重新申请二维码即可。
 
 ### 2.3 返回凭证与存储建议
@@ -154,6 +166,8 @@ curl 'https://ilinkai.weixin.qq.com/ilink/bot/get_bot_qrcode?bot_type=3' \
 | `AuthorizationType` | `ilink_bot_token` | 是 | 固定值。 |
 | `Authorization` | `Bearer ilinkbot_4Q7iH3oVt9YF0dJ2sK1mLp6r` | 是 | 二维码登录返回的 `bot_token`。 |
 | `X-WECHAT-UIN` | `MzA1NDE5ODk2` | 是 | 随机 `uint32` 的十进制字符串再做 base64。每次请求重新生成。 |
+| `iLink-App-Id` | `bot` | 建议 | openclaw-weixin 2.x 默认带上；当前实现来源于包元数据字段 `ilink_appid`。 |
+| `iLink-App-ClientVersion` | `131334` | 建议 | openclaw-weixin 2.x 默认带上；由插件版本计算得到（见 3.4）。 |
 | `Content-Length` | `187` | 是 | JSON body 的 UTF-8 字节长度。 |
 | `SKRouteTag` | `1001` | 否 | 部署方自定义路由标签。GET 登录接口通常也会带它。 |
 
@@ -206,6 +220,20 @@ public static String randomWechatUin() {
     String decimal = Long.toUnsignedString(Integer.toUnsignedLong(value));
     return Base64.getEncoder().encodeToString(decimal.getBytes(StandardCharsets.UTF_8));
 }
+```
+
+### 3.4 `iLink-App-ClientVersion` 编码（openclaw-weixin 2.x）
+
+openclaw-weixin 2.x 里 `iLink-App-ClientVersion` 不再固定为 `1`，而是把语义化版本编码为 `uint32`：
+
+```text
+encoded = (major << 16) | (minor << 8) | patch
+```
+
+示例：
+
+```text
+2.1.6 -> 0x00020106 -> 131334
 ```
 
 ---
@@ -381,6 +409,7 @@ ID 形态通常符合以下规律：
 | `encrypt_query_param` | `string?` | CDN 下载所需的加密查询参数。 |
 | `aes_key` | `string?` | base64 编码的 AES key；具体编码形式见第 8.4 节。 |
 | `encrypt_type` | `number?` | `0 = 只加密 file id`，`1 = 打包缩略图/中图等附加信息`。 |
+| `full_url` | `string?` | 服务端可直接返回完整下载地址；存在时可直接 GET，不必自行拼接 CDN URL。 |
 
 示例：
 
@@ -862,9 +891,16 @@ filesize = ceil((rawsize + 1) / 16) * 16
 ```json
 {
   "upload_param": "AABQmM4mZ2Yx_d4mcpG4vincN2=",
-  "thumb_upload_param": ""
+  "thumb_upload_param": "",
+  "upload_full_url": "https://novac2c.cdn.weixin.qq.com/c2c/upload?encrypted_query_param=...&filekey=..."
 }
 ```
+
+字段补充：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `upload_full_url` | `string?` | 服务端返回的完整上传地址；若有该字段，建议优先使用它上传。 |
 
 #### 第二步：本地加密文件
 
@@ -926,11 +962,14 @@ x-encrypted-param: AAFFc8c2PXQ5mKPw7rbcH7S1EA=
 
 说明：当前腾讯官方 openclaw 实现对出站媒体统一把 `aes_key` 写成 "base64(hex string)" 形式，即先把 hex 文本当作字节，再 base64。下载方因此必须兼容两种 key 编码形式，见第 8.4 节。
 
-### 8.3 下载流程：GET CDN download → AES-128-ECB 解密
+### 8.3 下载流程：GET CDN download（或 `full_url`）→ AES-128-ECB 解密
 
 **Method:** `GET`
 
-**URL:** `https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param=AAFFc8c2PXQ5mKPw7rbcH7S1EA%3D`
+**URL（两种来源）：**
+
+- `CDNMedia.full_url`（若服务端直接返回）。
+- 或客户端按 `https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param=...` 拼接。
 
 **Body:** 无。
 
@@ -1007,7 +1046,7 @@ MDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmY=
 
 但需要注意两点：
 
-- 腾讯官方 openclaw v1.0.2 当前默认走 `no_need_thumb: true`，也就是只上传主文件，不上传缩略图。
+- 腾讯官方 openclaw v2.1.6 当前默认走 `no_need_thumb: true`，也就是只上传主文件，不上传缩略图。
 - 因此你会在公开发送实现里看到图片/视频消息往往只有 `media`，没有 `thumb_media`。
 
 如果你要完整实现缩略图能力，推荐流程是：
@@ -1107,6 +1146,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | QR 轮询 | `status = wait` | 未扫码，或本地把超时等价为继续等待。 | 继续轮询。 |
 | QR 轮询 | `status = scaned` | 已扫码，等待手机端确认。 | 继续轮询。 |
+| QR 轮询 | `status = scaned_but_redirect` | 需要切换到新的 IDC 主机继续轮询。 | 读取 `redirect_host`，切换后继续轮询。 |
 | QR 轮询 | `status = confirmed` | 登录成功。 | 保存凭证。 |
 | QR 轮询 | `status = expired` | 二维码过期。 | 重新申请二维码。 |
 | 业务接口 | `ret = 0` | 业务成功。 | 正常处理。 |
@@ -1141,6 +1181,6 @@ sequenceDiagram
 | 项目 | 语言 | 说明 |
 | --- | --- | --- |
 | [epiral/weixin-bot](https://github.com/epiral/weixin-bot) | TypeScript / Python | Node.js + Python SDK，含完整协议文档（339 stars） |
-| [@tencent-weixin/openclaw-weixin](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) | TypeScript | 腾讯官方 openclaw 插件 v1.0.2 |
+| [@tencent-weixin/openclaw-weixin](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) | TypeScript | 腾讯官方 openclaw 插件，当前 `latest` 为 `2.1.6`（`legacy` 线为 `1.0.3`） |
 | [m1heng/claude-plugin-weixin](https://github.com/m1heng/claude-plugin-weixin) | TypeScript | Claude 微信插件实现 |
 | [hao-ji-xing/openclaw-weixin](https://github.com/hao-ji-xing/openclaw-weixin) | TypeScript | 另一个 openclaw 示例实现 |
