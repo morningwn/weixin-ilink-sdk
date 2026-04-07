@@ -28,18 +28,19 @@ import com.github.morningwn.util.CryptoUtils;
 import com.github.morningwn.util.HexUtils;
 import com.github.morningwn.util.TextChunker;
 import com.github.morningwn.util.WechatUinGenerator;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.Dsl;
+import org.asynchttpclient.Request;
+import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.Response;
 
-import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Core HTTP client for WeChat iLink Bot API.
@@ -51,7 +52,7 @@ public class ILinkClient {
     private static final String AUTHORIZATION_TYPE = "ilink_bot_token";
 
     private final ILinkClientConfig config;
-    private final HttpClient httpClient;
+    private final AsyncHttpClient httpClient;
     private final JsonCodec jsonCodec;
 
     /**
@@ -61,7 +62,10 @@ public class ILinkClient {
      */
     public ILinkClient(ILinkClientConfig config) {
         this(config,
-                HttpClient.newBuilder().connectTimeout(config.getConnectTimeout()).build(),
+            Dsl.asyncHttpClient(Dsl.config()
+                .setConnectTimeout(config.getConnectTimeout())
+                .setReadTimeout(config.getRequestTimeout())
+                .setRequestTimeout(config.getRequestTimeout())),
                 new JacksonJsonCodec());
     }
 
@@ -69,10 +73,10 @@ public class ILinkClient {
      * Creates a client with provided dependencies.
      *
      * @param config client config
-     * @param httpClient java http client
+     * @param httpClient async http client
      * @param jsonCodec json codec
      */
-    public ILinkClient(ILinkClientConfig config, HttpClient httpClient, JsonCodec jsonCodec) {
+    public ILinkClient(ILinkClientConfig config, AsyncHttpClient httpClient, JsonCodec jsonCodec) {
         this.config = Objects.requireNonNull(config, "config cannot be null");
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient cannot be null");
         this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec cannot be null");
@@ -85,9 +89,9 @@ public class ILinkClient {
      */
     public QrCodeResponse getBotQrcode() {
         String path = "/ilink/bot/get_bot_qrcode?bot_type=" + config.getBotType();
-        HttpRequest request = withLoginHeaders(HttpRequest.newBuilder(buildUri(config.getBaseUrl(), path))
-                .GET()
-                .timeout(config.getRequestTimeout()))
+        Request request = withLoginHeaders(new RequestBuilder("GET")
+            .setUrl(buildUrl(config.getBaseUrl(), path))
+            .setRequestTimeout(config.getRequestTimeout()))
                 .build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeResponse.class);
@@ -113,9 +117,9 @@ public class ILinkClient {
     public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl) {
         requireNonBlank(qrcode, "qrcode");
         String path = "/ilink/bot/get_qrcode_status?qrcode=" + urlEncode(qrcode);
-        HttpRequest request = withLoginHeaders(HttpRequest.newBuilder(buildUri(baseUrl, path))
-                .GET()
-                .timeout(config.getRequestTimeout()))
+        Request request = withLoginHeaders(new RequestBuilder("GET")
+            .setUrl(buildUrl(baseUrl, path))
+            .setRequestTimeout(config.getRequestTimeout()))
                 .build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeStatusResponse.class);
@@ -373,16 +377,17 @@ public class ILinkClient {
                     + "&filekey=" + urlEncode(fileKey);
         }
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(target))
-                .header("Content-Type", CONTENT_TYPE_OCTET_STREAM)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
-                .timeout(config.getRequestTimeout())
+        Request request = new RequestBuilder("POST")
+            .setUrl(target)
+            .setHeader("Content-Type", CONTENT_TYPE_OCTET_STREAM)
+            .setBody(encryptedBytes)
+            .setRequestTimeout(config.getRequestTimeout())
                 .build();
 
-        HttpResponse<byte[]> response = sendBytes(request);
-        assertHttpSuccess(response.statusCode(), "CDN upload failed");
-        String encryptedParam = response.headers().firstValue("x-encrypted-param").orElse(null);
-        return new CdnUploadResult(response.statusCode(), encryptedParam);
+        Response response = sendResponse(request);
+        assertHttpSuccess(response.getStatusCode(), "CDN upload failed");
+        String encryptedParam = response.getHeader("x-encrypted-param");
+        return new CdnUploadResult(response.getStatusCode(), encryptedParam);
     }
 
     /**
@@ -403,13 +408,13 @@ public class ILinkClient {
                     + "/download?encrypted_query_param=" + urlEncode(media.encryptQueryParam());
         }
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(target))
-                .GET()
-                .timeout(config.getRequestTimeout())
+        Request request = new RequestBuilder("GET")
+            .setUrl(target)
+            .setRequestTimeout(config.getRequestTimeout())
                 .build();
-        HttpResponse<byte[]> response = sendBytes(request);
-        assertHttpSuccess(response.statusCode(), "CDN download failed");
-        return response.body();
+        Response response = sendResponse(request);
+        assertHttpSuccess(response.getStatusCode(), "CDN download failed");
+        return response.getResponseBodyAsBytes();
     }
 
     /**
@@ -454,71 +459,63 @@ public class ILinkClient {
     ) {
         requireNonBlank(token, "token");
         String json = jsonCodec.toJson(payload);
-        HttpRequest.Builder builder = HttpRequest.newBuilder(buildUri(baseUrl, path))
-                .header("Content-Type", CONTENT_TYPE_JSON)
-                .header("AuthorizationType", AUTHORIZATION_TYPE)
-                .header("Authorization", "Bearer " + token)
-                .header("X-WECHAT-UIN", WechatUinGenerator.randomWechatUin())
-                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
-                .timeout(timeout == null ? config.getRequestTimeout() : timeout);
+        RequestBuilder builder = new RequestBuilder("POST")
+                .setUrl(buildUrl(baseUrl, path))
+                .setHeader("Content-Type", CONTENT_TYPE_JSON)
+                .setHeader("AuthorizationType", AUTHORIZATION_TYPE)
+                .setHeader("Authorization", "Bearer " + token)
+                .setHeader("X-WECHAT-UIN", WechatUinGenerator.randomWechatUin())
+                .setBody(json)
+                .setCharset(StandardCharsets.UTF_8)
+                .setRequestTimeout(timeout == null ? config.getRequestTimeout() : timeout);
 
         withOptionalHeaders(builder);
 
-        HttpResponse<String> response = sendString(builder.build());
-        assertHttpSuccess(response.statusCode(), "Business request failed");
-        return jsonCodec.fromJson(response.body(), responseType);
+        Response response = sendResponse(builder.build());
+        assertHttpSuccess(response.getStatusCode(), "Business request failed");
+        return jsonCodec.fromJson(response.getResponseBody(StandardCharsets.UTF_8), responseType);
     }
 
-    private HttpRequest.Builder withLoginHeaders(HttpRequest.Builder builder) {
+    private RequestBuilder withLoginHeaders(RequestBuilder builder) {
         return withOptionalHeaders(builder);
     }
 
-    private HttpRequest.Builder withOptionalHeaders(HttpRequest.Builder builder) {
+    private RequestBuilder withOptionalHeaders(RequestBuilder builder) {
         if (config.getAppId() != null && !config.getAppId().isBlank()) {
-            builder.header("iLink-App-Id", config.getAppId());
+            builder.setHeader("iLink-App-Id", config.getAppId());
         }
         if (config.getAppClientVersion() != null && !config.getAppClientVersion().isBlank()) {
-            builder.header("iLink-App-ClientVersion", config.getAppClientVersion());
+            builder.setHeader("iLink-App-ClientVersion", config.getAppClientVersion());
         }
         if (config.getRouteTag() != null && !config.getRouteTag().isBlank()) {
-            builder.header("SKRouteTag", config.getRouteTag());
+            builder.setHeader("SKRouteTag", config.getRouteTag());
         }
         return builder;
     }
 
-    private HttpResponse<String> sendString(HttpRequest request) {
+    private Response sendResponse(Request request) {
         try {
-            return httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new ILinkException("HTTP request failed", e);
+            return httpClient.executeRequest(request).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ILinkException("HTTP request interrupted", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new ILinkException("HTTP request failed", cause);
         }
     }
 
-    private HttpResponse<byte[]> sendBytes(HttpRequest request) {
-        try {
-            return httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        } catch (IOException e) {
-            throw new ILinkException("HTTP request failed", e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ILinkException("HTTP request interrupted", e);
-        }
+    private String sendText(Request request) {
+        Response response = sendResponse(request);
+        assertHttpSuccess(response.getStatusCode(), "HTTP request failed");
+        return response.getResponseBody(StandardCharsets.UTF_8);
     }
 
-    private String sendText(HttpRequest request) {
-        HttpResponse<String> response = sendString(request);
-        assertHttpSuccess(response.statusCode(), "HTTP request failed");
-        return response.body();
-    }
-
-    private URI buildUri(String baseUrl, String path) {
+    private String buildUrl(String baseUrl, String path) {
         requireNonBlank(baseUrl, "baseUrl");
         String normalizedBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String normalizedPath = path.startsWith("/") ? path : "/" + path;
-        return URI.create(normalizedBase + normalizedPath);
+        return normalizedBase + normalizedPath;
     }
 
     private static String urlEncode(String value) {
