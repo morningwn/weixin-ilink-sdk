@@ -207,6 +207,18 @@ public class ILinkClient implements AutoCloseable {
      * @return updates response
      */
     public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf) {
+        return getUpdates(session, getUpdatesBuf, config.getLongPollingTimeout());
+    }
+
+    /**
+     * Calls getupdates with current cursor and custom timeout for this request.
+     *
+     * @param session auth session
+     * @param getUpdatesBuf opaque cursor, empty string for first call
+     * @param timeout request timeout for this call
+     * @return updates response
+     */
+    public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf, Duration timeout) {
         Objects.requireNonNull(session, "session cannot be null");
         GetUpdatesRequest request = new GetUpdatesRequest(
                 getUpdatesBuf == null ? "" : getUpdatesBuf,
@@ -218,7 +230,7 @@ public class ILinkClient implements AutoCloseable {
                 PATH_GET_UPDATES,
                 session.token(),
                 request,
-                config.getLongPollingTimeout(),
+                timeout,
                 GetUpdatesResponse.class
         );
         assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);

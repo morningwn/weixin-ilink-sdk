@@ -2,6 +2,9 @@ package com.github.morningwn.handler;
 
 import com.github.morningwn.client.ILinkAuthSession;
 import com.github.morningwn.protocol.QrCodeResponse;
+import com.github.morningwn.protocol.WeixinMessage;
+
+import java.util.List;
 
 /**
  * Optional session lifecycle callback.
@@ -42,5 +45,27 @@ public interface SessionHandler {
      * @param qrCodeResponse qr code payload
      */
     default void onQrcode(QrCodeResponse qrCodeResponse) {
+    }
+
+    /**
+     * Confirms whether the suggested getupdates cursor can be committed.
+     *
+     * <p>Called after a batch response is handled and before bot updates internal cursor.
+     * Applications can return current cursor to postpone commit when external durability
+     * (for example database flush) is not finished.</p>
+     *
+     * @param currentGetUpdatesBuf currently committed cursor
+     * @param suggestedGetUpdatesBuf cursor suggested by latest getupdates response
+     * @param receivedMessages messages returned in latest batch
+     * @param fullyProcessed whether this batch has been fully processed by message handler
+     * @return confirmed cursor to commit; return current cursor to skip commit
+     */
+    default String confirmGetUpdatesBuf(
+            String currentGetUpdatesBuf,
+            String suggestedGetUpdatesBuf,
+            List<WeixinMessage> receivedMessages,
+            boolean fullyProcessed
+    ) {
+        return fullyProcessed ? suggestedGetUpdatesBuf : currentGetUpdatesBuf;
     }
 }

@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -50,7 +51,12 @@ public final class ILinkBot implements AutoCloseable {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int AES_ENCRYPT_TYPE = 1;
     private static final int RETRY_DELAY_MS = 1_000;
+    private static final int RETRY_DELAY_MAX_MS = 15_000;
     private static final int QR_POLL_INTERVAL_MS = 1_000;
+    private static final int MIN_LONG_POLL_TIMEOUT_MS = 3_000;
+    private static final int MAX_LONG_POLL_TIMEOUT_MS = 60_000;
+    private static final int LONG_POLL_TIMEOUT_MARGIN_MS = 1_000;
+    private static final int SHUTDOWN_CLEANUP_TIMEOUT_MS = 1_000;
     private static final long SHUTDOWN_WAIT_MILLIS = 2_000L;
     private static final long FORCED_SHUTDOWN_WAIT_MILLIS = 1_000L;
 
@@ -411,6 +417,7 @@ public final class ILinkBot implements AutoCloseable {
         stopAutoPullInternal(false);
         pullExecutor.shutdown();
         awaitPullExecutorTermination();
+        performShutdownCleanup();
         if (ownsClient) {
             try {
                 client.close();
@@ -421,32 +428,39 @@ public final class ILinkBot implements AutoCloseable {
     }
 
     private void runAutoPullLoop(MessageHandler handler) {
+        long retryDelayMs = RETRY_DELAY_MS;
+        Duration longPollingTimeout = normalizeLongPollingTimeout(config.getLongPollingTimeout());
         while (autoPulling.get()) {
             try {
+                String currentGetUpdatesBuf = getUpdatesBuf;
+                Duration requestTimeout = longPollingTimeout;
                 GetUpdatesResponse response = executeWithSessionRetry(
-                        currentSession -> client.getUpdates(currentSession, getUpdatesBuf)
+                        currentSession -> client.getUpdates(currentSession, getUpdatesBuf, requestTimeout)
                 );
-                if (response.getUpdatesBuf() != null && !response.getUpdatesBuf().isBlank()) {
-                    getUpdatesBuf = response.getUpdatesBuf();
-                }
+                retryDelayMs = RETRY_DELAY_MS;
+                longPollingTimeout = deriveNextLongPollingTimeout(longPollingTimeout, response.longpollingTimeoutMs());
+                String suggestedGetUpdatesBuf = normalizeGetUpdatesBuf(response.getUpdatesBuf());
 
                 List<WeixinMessage> messages = response.msgs();
-                if (messages == null || messages.isEmpty()) {
-                    continue;
+                boolean fullyProcessed = processMessageBatch(handler, messages);
+                String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
+                        currentGetUpdatesBuf,
+                        suggestedGetUpdatesBuf,
+                        messages,
+                        fullyProcessed
+                );
+                if (!Objects.equals(currentGetUpdatesBuf, confirmedGetUpdatesBuf)) {
+                    getUpdatesBuf = confirmedGetUpdatesBuf;
                 }
 
-                for (WeixinMessage message : messages) {
+                if (!fullyProcessed) {
                     if (!autoPulling.get()) {
+                        LOG.debug("Auto pull stopping, cursor commit deferred");
                         return;
                     }
-                    if (message == null) {
-                        continue;
-                    }
-                    try {
-                        handler.handle(message);
-                    } catch (Exception e) {
-                        LOG.error("Message handler failed, messageId={}", message.messageId(), e);
-                    }
+                    LOG.warn("Message batch was not fully processed, cursor commit is deferred");
+                    sleepBeforeRetry(retryDelayMs);
+                    retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
                 }
             } catch (SessionExpiredException e) {
                 if (shouldSuppressDuringShutdown(e)) {
@@ -454,14 +468,67 @@ public final class ILinkBot implements AutoCloseable {
                     return;
                 }
                 LOG.warn("Session expired during auto pull and retry also failed", e);
+                sleepBeforeRetry(retryDelayMs);
+                retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
             } catch (RuntimeException e) {
                 if (shouldSuppressDuringShutdown(e)) {
                     LOG.debug("Auto pull stopped during shutdown: {}", e.getMessage());
                     return;
                 }
-                LOG.error("Auto pull failed, retrying", e);
-                sleepBeforeRetry();
+                LOG.error("Auto pull failed, retrying in {} ms", retryDelayMs, e);
+                sleepBeforeRetry(retryDelayMs);
+                retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
             }
+        }
+    }
+
+    private boolean processMessageBatch(MessageHandler handler, List<WeixinMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return true;
+        }
+        for (WeixinMessage message : messages) {
+            if (!autoPulling.get()) {
+                return false;
+            }
+            if (message == null) {
+                continue;
+            }
+            try {
+                handler.handle(message);
+            } catch (Exception e) {
+                LOG.error("Message handler failed, messageId={}", message.messageId(), e);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String resolveConfirmedGetUpdatesBuf(
+            String currentGetUpdatesBuf,
+            String suggestedGetUpdatesBuf,
+            List<WeixinMessage> receivedMessages,
+            boolean fullyProcessed
+    ) {
+        String safeCurrentBuf = currentGetUpdatesBuf == null ? "" : currentGetUpdatesBuf;
+        String safeSuggestedBuf = normalizeGetUpdatesBuf(suggestedGetUpdatesBuf);
+        if (safeSuggestedBuf == null) {
+            return safeCurrentBuf;
+        }
+        if (sessionHandler == null) {
+            return fullyProcessed ? safeSuggestedBuf : safeCurrentBuf;
+        }
+        try {
+            String confirmedGetUpdatesBuf = sessionHandler.confirmGetUpdatesBuf(
+                    safeCurrentBuf,
+                    safeSuggestedBuf,
+                    receivedMessages == null ? List.of() : List.copyOf(receivedMessages),
+                    fullyProcessed
+            );
+            String normalizedConfirmedBuf = normalizeGetUpdatesBuf(confirmedGetUpdatesBuf);
+            return normalizedConfirmedBuf == null ? safeCurrentBuf : normalizedConfirmedBuf;
+        } catch (Exception e) {
+            LOG.warn("Session handler confirmGetUpdatesBuf failed, keep current cursor", e);
+            return safeCurrentBuf;
         }
     }
 
@@ -721,9 +788,78 @@ public final class ILinkBot implements AutoCloseable {
         }
     }
 
-    private static void sleepBeforeRetry() {
+    private Duration deriveNextLongPollingTimeout(Duration currentTimeout, Integer responseTimeoutMs) {
+        if (responseTimeoutMs == null || responseTimeoutMs <= 0) {
+            return currentTimeout;
+        }
+
+        Duration nextTimeout = normalizeLongPollingTimeout(
+                Duration.ofMillis((long) responseTimeoutMs + LONG_POLL_TIMEOUT_MARGIN_MS)
+        );
+        if (!nextTimeout.equals(currentTimeout)) {
+            LOG.debug(
+                    "Adjusted long polling timeout from {} ms to {} ms by server hint {} ms",
+                    currentTimeout.toMillis(),
+                    nextTimeout.toMillis(),
+                    responseTimeoutMs
+            );
+        }
+        return nextTimeout;
+    }
+
+    private static Duration normalizeLongPollingTimeout(Duration timeout) {
+        long millis = timeout == null ? MIN_LONG_POLL_TIMEOUT_MS : timeout.toMillis();
+        long clamped = Math.max(MIN_LONG_POLL_TIMEOUT_MS, Math.min(MAX_LONG_POLL_TIMEOUT_MS, millis));
+        return Duration.ofMillis(clamped);
+    }
+
+    private void performShutdownCleanup() {
+        ILinkAuthSession currentSession = session;
+        if (currentSession == null) {
+            return;
+        }
+        String currentGetUpdatesBuf = getUpdatesBuf;
+        if (currentGetUpdatesBuf == null || currentGetUpdatesBuf.isBlank()) {
+            return;
+        }
         try {
-            Thread.sleep(RETRY_DELAY_MS);
+            GetUpdatesResponse response = client.getUpdates(
+                    currentSession,
+                    currentGetUpdatesBuf,
+                    Duration.ofMillis(SHUTDOWN_CLEANUP_TIMEOUT_MS)
+            );
+            List<WeixinMessage> messages = response.msgs();
+            boolean hasPendingMessages = messages != null && !messages.isEmpty();
+            String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
+                    currentGetUpdatesBuf,
+                    response.getUpdatesBuf(),
+                    messages,
+                    !hasPendingMessages
+            );
+            if (!Objects.equals(currentGetUpdatesBuf, confirmedGetUpdatesBuf)) {
+                getUpdatesBuf = confirmedGetUpdatesBuf;
+            }
+            if (hasPendingMessages) {
+                LOG.info("Shutdown cleanup observed {} pending messages, cursor will not advance", messages.size());
+            }
+        } catch (SessionExpiredException e) {
+            LOG.debug("Skip shutdown cleanup because session expired");
+        } catch (RuntimeException e) {
+            LOG.debug("Shutdown cleanup skipped: {}", e.getMessage());
+        }
+    }
+
+    private static String normalizeGetUpdatesBuf(String getUpdatesBuf) {
+        if (getUpdatesBuf == null || getUpdatesBuf.isBlank()) {
+            return null;
+        }
+        return getUpdatesBuf;
+    }
+
+    private static void sleepBeforeRetry(long delayMillis) {
+        long safeDelay = Math.max(delayMillis, 0L);
+        try {
+            Thread.sleep(safeDelay);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

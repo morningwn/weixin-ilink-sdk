@@ -6,6 +6,7 @@ import com.github.morningwn.protocol.GetUpdatesResponse;
 import com.github.morningwn.protocol.ProtocolValues;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +66,7 @@ class ILinkBotShutdownTest {
         }
 
         @Override
-        public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf) {
+        public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf, Duration timeout) {
             enteredGetUpdates.countDown();
             try {
                 Thread.sleep(10_000);
