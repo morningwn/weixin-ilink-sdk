@@ -564,7 +564,7 @@ public class ILinkClient implements AutoCloseable {
             return new RawHttpResponse(response.statusCode(), response.headers(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOG.warn("HTTP request interrupted: {} {}", request.method(), path, e);
+            LOG.info("HTTP request interrupted: {} {}", request.method(), path);
             throw new ILinkException(MESSAGE_HTTP_REQUEST_INTERRUPTED, e);
         } catch (IOException e) {
             LOG.error("HTTP request failed: {} {}", request.method(), path, e);

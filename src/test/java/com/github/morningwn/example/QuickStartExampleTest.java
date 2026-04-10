@@ -75,8 +75,7 @@ public final class QuickStartExampleTest {
         }
     }
 
-    private static void runConsoleReplyLoop(ILinkBot bot, AtomicReference<ReplyTarget> latestReplyTarget)
-            throws IOException {
+    private static void runConsoleReplyLoop(ILinkBot bot, AtomicReference<ReplyTarget> latestReplyTarget) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         while (true) {
             String line = reader.readLine();

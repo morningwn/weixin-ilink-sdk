@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -50,6 +51,8 @@ public final class ILinkBot implements AutoCloseable {
     private static final int AES_ENCRYPT_TYPE = 1;
     private static final int RETRY_DELAY_MS = 1_000;
     private static final int QR_POLL_INTERVAL_MS = 1_000;
+    private static final long SHUTDOWN_WAIT_MILLIS = 2_000L;
+    private static final long FORCED_SHUTDOWN_WAIT_MILLIS = 1_000L;
 
     private final ILinkClient client;
     private final ILinkClientConfig config;
@@ -59,6 +62,7 @@ public final class ILinkBot implements AutoCloseable {
     private final Object sessionLock = new Object();
 
     private final AtomicBoolean autoPulling = new AtomicBoolean(false);
+    private final AtomicBoolean closing = new AtomicBoolean(false);
     private final ExecutorService pullExecutor;
     private volatile Future<?> pullTask;
     private volatile String getUpdatesBuf = "";
@@ -151,6 +155,9 @@ public final class ILinkBot implements AutoCloseable {
      */
     public synchronized void startAutoPull(MessageHandler handler) {
         Objects.requireNonNull(handler, "handler cannot be null");
+        if (closing.get()) {
+            throw new ILinkException("Bot is already closing");
+        }
         if (!autoPulling.compareAndSet(false, true)) {
             return;
         }
@@ -161,11 +168,7 @@ public final class ILinkBot implements AutoCloseable {
      * Stops background long polling.
      */
     public synchronized void stopAutoPull() {
-        autoPulling.set(false);
-        if (pullTask != null) {
-            pullTask.cancel(true);
-            pullTask = null;
-        }
+        stopAutoPullInternal(true);
     }
 
     /**
@@ -402,10 +405,18 @@ public final class ILinkBot implements AutoCloseable {
      */
     @Override
     public void close() {
-        stopAutoPull();
-        pullExecutor.shutdownNow();
+        if (!closing.compareAndSet(false, true)) {
+            return;
+        }
+        stopAutoPullInternal(false);
+        pullExecutor.shutdown();
+        awaitPullExecutorTermination();
         if (ownsClient) {
-            client.close();
+            try {
+                client.close();
+            } catch (RuntimeException e) {
+                LOG.warn("Failed to close internal ILinkClient", e);
+            }
         }
     }
 
@@ -438,8 +449,16 @@ public final class ILinkBot implements AutoCloseable {
                     }
                 }
             } catch (SessionExpiredException e) {
+                if (shouldSuppressDuringShutdown(e)) {
+                    LOG.debug("Auto pull stopped during shutdown after session expiration");
+                    return;
+                }
                 LOG.warn("Session expired during auto pull and retry also failed", e);
             } catch (RuntimeException e) {
+                if (shouldSuppressDuringShutdown(e)) {
+                    LOG.debug("Auto pull stopped during shutdown: {}", e.getMessage());
+                    return;
+                }
                 LOG.error("Auto pull failed, retrying", e);
                 sleepBeforeRetry();
             }
@@ -567,6 +586,9 @@ public final class ILinkBot implements AutoCloseable {
     }
 
     private ILinkAuthSession loadSessionFromHandler() {
+        if (sessionHandler == null) {
+            return null;
+        }
         try {
             ILinkAuthSession loadedSession = sessionHandler.loadSession();
             if (loadedSession != null) {
@@ -705,6 +727,62 @@ public final class ILinkBot implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private synchronized void forceStopAutoPull() {
+        stopAutoPullInternal(true);
+    }
+
+    private synchronized void stopAutoPullInternal(boolean interruptRunningTask) {
+        autoPulling.set(false);
+        if (pullTask == null) {
+            return;
+        }
+        if (pullTask.isDone()) {
+            pullTask = null;
+            return;
+        }
+        if (interruptRunningTask) {
+            pullTask.cancel(true);
+            pullTask = null;
+        }
+    }
+
+    private void awaitPullExecutorTermination() {
+        boolean terminated = awaitTermination(SHUTDOWN_WAIT_MILLIS);
+        if (terminated) {
+            return;
+        }
+        LOG.info("Auto pull worker did not stop in {} ms, forcing shutdown", SHUTDOWN_WAIT_MILLIS);
+        forceStopAutoPull();
+        pullExecutor.shutdownNow();
+        awaitTermination(FORCED_SHUTDOWN_WAIT_MILLIS);
+    }
+
+    private boolean awaitTermination(long timeoutMillis) {
+        try {
+            return pullExecutor.awaitTermination(timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            forceStopAutoPull();
+            pullExecutor.shutdownNow();
+            return false;
+        }
+    }
+
+    private boolean shouldSuppressDuringShutdown(Throwable throwable) {
+        return closing.get() || !autoPulling.get() || Thread.currentThread().isInterrupted() || hasInterruptedCause(throwable);
+    }
+
+    private static boolean hasInterruptedCause(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     @FunctionalInterface
