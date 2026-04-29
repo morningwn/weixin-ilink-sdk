@@ -9,13 +9,13 @@
 ```java
 package com.github.morningwn.demo;
 
-import com.github.morningwn.client.ILinkAuthSession;
-import com.github.morningwn.client.ILinkBot;
-import com.github.morningwn.client.ILinkClientConfig;
-import com.github.morningwn.handler.SessionHandler;
-import com.github.morningwn.protocol.MessageItem;
-import com.github.morningwn.protocol.ProtocolValues;
-import com.github.morningwn.protocol.QrCodeResponse;
+import io.github.morningwn.client.ILinkAuthSession;
+import io.github.morningwn.client.ILinkBot;
+import io.github.morningwn.client.ILinkClientConfig;
+import io.github.morningwn.handler.SessionHandler;
+import io.github.morningwn.protocol.MessageItem;
+import io.github.morningwn.protocol.ProtocolValues;
+import io.github.morningwn.protocol.QrCodeResponse;
 
 import java.nio.file.Path;
 
@@ -103,14 +103,14 @@ public final class BotDemo {
 
 ## 可执行示例（Program）
 
-- 可直接运行的示例程序在 [src/test/java/com/github/morningwn/example/QuickStartExampleTest.java](src/test/java/com/github/morningwn/example/QuickStartExampleTest.java) 。
+- 可直接运行的示例程序在 [src/test/java/io/github/morningwn/example/QuickStartExampleTest.java](src/test/java/com/github/morningwn/example/QuickStartExampleTest.java) 。
 - 程序启动后会自动拉消息，session 缺失/过期时会触发二维码登录，并使用 ZXing 在控制台打印可扫码二维码图案。
 - 程序会监听控制台输入；当收到用户消息后，输入文本并回车即可回复该用户（`/quit` 可退出）。
 
 ## 可执行示例（Web）
 
-- Web 版示例程序在 [src/test/java/com/github/morningwn/example/WebQuickStartExampleTest.java](src/test/java/com/github/morningwn/example/WebQuickStartExampleTest.java) 。
-- 静态页面资源在 [src/test/resources/com/github/morningwn/example/web/quick-start-web.html](src/test/resources/com/github/morningwn/example/web/quick-start-web.html) 。
+- Web 版示例程序在 [src/test/java/io/github/morningwn/example/WebQuickStartExampleTest.java](src/test/java/com/github/morningwn/example/WebQuickStartExampleTest.java) 。
+- 静态页面资源在 [src/test/resources/io/github/morningwn/example/web/quick-start-web.html](src/test/resources/com/github/morningwn/example/web/quick-start-web.html) 。
 - 启动命令：
 
 ```bash

@@ -4,9 +4,36 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.github.morningwn</groupId>
+    <groupId>io.github.morningwn</groupId>
     <artifactId>weixin-ilink-sdk</artifactId>
     <version>1.0.0</version>
+    <name>weixin-ilink-sdk</name>
+    <description>Java SDK for the WeChat iLink protocol.</description>
+    <url>https://github.com/morningwn/weixin-ilink-sdk</url>
+
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>morningwn</id>
+            <name>morningwn</name>
+            <email>morningwn@126.com</email>
+            <url>https://github.com/morningwn</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <url>https://github.com/morningwn/weixin-ilink-sdk</url>
+        <connection>scm:git:https://github.com/morningwn/weixin-ilink-sdk.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/morningwn/weixin-ilink-sdk.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -91,19 +118,23 @@
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.4.0</version>
+                <version>0.10.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>morningwn</publishingServerId>
-                    <tokenAuth>true</tokenAuth>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
-                <version>1.5</version>
+                <version>3.2.8</version>
                 <configuration>
                     <keyname>morningwn</keyname>
+                    <executable>gpg</executable>
+                    <gpgArguments>
+                        <arg>--pinentry-mode</arg>
+                        <arg>loopback</arg>
+                    </gpgArguments>
                 </configuration>
                 <executions>
                     <execution>
@@ -135,6 +166,23 @@
                 <executions>
                     <execution>
                         <id>attach-sources</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.11.2</version>
+                <configuration>
+                    <doclint>none</doclint>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
                         <goals>
                             <goal>jar</goal>
                         </goals>
