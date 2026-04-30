@@ -1,5 +1,12 @@
 package io.github.morningwn.example;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import io.github.morningwn.client.ILinkAuthSession;
 import io.github.morningwn.client.ILinkBot;
 import io.github.morningwn.client.ILinkClient;
@@ -13,13 +20,12 @@ import io.github.morningwn.protocol.MessageItem;
 import io.github.morningwn.protocol.QrCodeResponse;
 import io.github.morningwn.protocol.VoiceItem;
 import io.github.morningwn.protocol.WeixinMessage;
-import io.github.morningwn.protocol.enums.MessageItemType;
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -596,6 +602,76 @@ public final class WebQuickStartExampleTest {
         return URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
+    private static String toDisplayableQrImageSource(String qrCodeImgContent) {
+        if (!hasText(qrCodeImgContent)) {
+            return null;
+        }
+        String value = qrCodeImgContent.trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+
+        if (lower.startsWith("data:image/")) {
+            return value;
+        }
+
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            if (isLikelyImageUrl(value)) {
+                return value;
+            }
+            String rendered = renderQrDataUrl(value);
+            return rendered == null ? value : rendered;
+        }
+
+        if (isLikelyBase64Payload(value)) {
+            return "data:image/png;base64," + value.replaceAll("\\s+", "");
+        }
+
+        String rendered = renderQrDataUrl(value);
+        return rendered == null ? value : rendered;
+    }
+
+    private static boolean isLikelyImageUrl(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        int queryIndex = lower.indexOf('?');
+        String pathPart = queryIndex >= 0 ? lower.substring(0, queryIndex) : lower;
+        return pathPart.endsWith(".png")
+                || pathPart.endsWith(".jpg")
+                || pathPart.endsWith(".jpeg")
+                || pathPart.endsWith(".gif")
+                || pathPart.endsWith(".webp")
+                || pathPart.endsWith(".bmp")
+                || pathPart.endsWith(".svg");
+    }
+
+    private static boolean isLikelyBase64Payload(String value) {
+        String normalized = value.replaceAll("\\s+", "");
+        if (normalized.length() < 64 || normalized.length() % 4 != 0) {
+            return false;
+        }
+        return normalized.matches("^[A-Za-z0-9+/=]+$");
+    }
+
+    private static String renderQrDataUrl(String content) {
+        try {
+            BitMatrix matrix = new QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 320, 320);
+            int width = matrix.getWidth();
+            int height = matrix.getHeight();
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    image.setRGB(x, y, matrix.get(x, y) ? 0x000000 : 0xFFFFFF);
+                }
+            }
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", outputStream);
+            String base64 = Base64.getEncoder().encodeToString(outputStream.toByteArray());
+            return "data:image/png;base64," + base64;
+        } catch (WriterException | IOException e) {
+            return null;
+        }
+    }
+
     private static long safeLong(Long value) {
         return value == null ? System.currentTimeMillis() : value;
     }
@@ -772,10 +848,10 @@ public final class WebQuickStartExampleTest {
 
         @Override
         public void onQrcode(QrCodeResponse qrCodeResponse) {
-            String qr = Optional.ofNullable(qrCodeResponse)
+            String qrContent = Optional.ofNullable(qrCodeResponse)
                     .map(QrCodeResponse::qrcodeImgContent)
                     .orElse(null);
-            qrCodeImgContentRef.set(qr);
+            qrCodeImgContentRef.set(toDisplayableQrImageSource(qrContent));
             eventStore.add("system", "qrcode", "local", "QR code updated", null, null, null);
         }
 
