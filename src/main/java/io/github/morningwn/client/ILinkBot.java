@@ -12,13 +12,16 @@ import io.github.morningwn.protocol.GetUploadUrlRequest;
 import io.github.morningwn.protocol.GetUploadUrlResponse;
 import io.github.morningwn.protocol.ImageItem;
 import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.ProtocolValues;
 import io.github.morningwn.protocol.QrCodeResponse;
 import io.github.morningwn.protocol.QrCodeStatusResponse;
 import io.github.morningwn.protocol.SendMessageResponse;
 import io.github.morningwn.protocol.VideoItem;
 import io.github.morningwn.protocol.VoiceItem;
 import io.github.morningwn.protocol.WeixinMessage;
+import io.github.morningwn.protocol.enums.MessageItemType;
+import io.github.morningwn.protocol.enums.MessageState;
+import io.github.morningwn.protocol.enums.MessageType;
+import io.github.morningwn.protocol.enums.QrCodeStatus;
 import io.github.morningwn.util.ClientIdGenerator;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -238,7 +241,7 @@ public final class ILinkBot implements AutoCloseable {
      */
     public SendMessageResponse sendImage(String toUserId, String contextToken, byte[] imageBytes) {
         return executeWithSessionRetry(currentSession -> {
-            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, ProtocolValues.ITEM_TYPE_IMAGE, imageBytes);
+            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.IMAGE, imageBytes);
             ImageItem imageItem = new ImageItem(
                 uploadedMedia.media(),
                 null,
@@ -251,7 +254,7 @@ public final class ILinkBot implements AutoCloseable {
                 null
             );
             MessageItem item = new MessageItem(
-                ProtocolValues.ITEM_TYPE_IMAGE,
+                MessageItemType.IMAGE,
                 null,
                 null,
                 null,
@@ -291,7 +294,7 @@ public final class ILinkBot implements AutoCloseable {
     public SendMessageResponse sendFile(String toUserId, String contextToken, String fileName, byte[] fileBytes) {
         requireNonBlank(fileName, "fileName");
         return executeWithSessionRetry(currentSession -> {
-            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, ProtocolValues.ITEM_TYPE_FILE, fileBytes);
+            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.FILE, fileBytes);
             FileItem fileItem = new FileItem(
                 uploadedMedia.media(),
                 fileName,
@@ -299,7 +302,7 @@ public final class ILinkBot implements AutoCloseable {
                 Long.toString(uploadedMedia.rawSize())
             );
             MessageItem item = new MessageItem(
-                ProtocolValues.ITEM_TYPE_FILE,
+                MessageItemType.FILE,
                 null,
                 null,
                 null,
@@ -342,7 +345,7 @@ public final class ILinkBot implements AutoCloseable {
             throw new ILinkException("playtime cannot be negative");
         }
         return executeWithSessionRetry(currentSession -> {
-            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, ProtocolValues.ITEM_TYPE_VOICE, voiceBytes);
+            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VOICE, voiceBytes);
             VoiceItem voiceItem = new VoiceItem(
                 uploadedMedia.media(),
                 null,
@@ -352,7 +355,7 @@ public final class ILinkBot implements AutoCloseable {
                 null
             );
             MessageItem item = new MessageItem(
-                ProtocolValues.ITEM_TYPE_VOICE,
+                MessageItemType.VOICE,
                 null,
                 null,
                 null,
@@ -378,7 +381,7 @@ public final class ILinkBot implements AutoCloseable {
      */
     public SendMessageResponse sendVideo(String toUserId, String contextToken, byte[] videoBytes) {
         return executeWithSessionRetry(currentSession -> {
-            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, ProtocolValues.ITEM_TYPE_VIDEO, videoBytes);
+            UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VIDEO, videoBytes);
             VideoItem videoItem = new VideoItem(
                 uploadedMedia.media(),
                 uploadedMedia.encryptedSize(),
@@ -390,7 +393,7 @@ public final class ILinkBot implements AutoCloseable {
                 null
             );
             MessageItem item = new MessageItem(
-                ProtocolValues.ITEM_TYPE_VIDEO,
+                MessageItemType.VIDEO,
                 null,
                 null,
                 null,
@@ -532,8 +535,14 @@ public final class ILinkBot implements AutoCloseable {
         }
     }
 
-    private UploadedMedia uploadMedia(ILinkAuthSession currentSession, String toUserId, int itemType, byte[] plaintext) {
+    private UploadedMedia uploadMedia(
+            ILinkAuthSession currentSession,
+            String toUserId,
+            MessageItemType itemType,
+            byte[] plaintext
+    ) {
         requireNonBlank(toUserId, "toUserId");
+        Objects.requireNonNull(itemType, "itemType cannot be null");
         Objects.requireNonNull(plaintext, "plaintext cannot be null");
 
         int mediaType = toUploadMediaType(itemType);
@@ -607,21 +616,19 @@ public final class ILinkBot implements AutoCloseable {
             String qrBaseUrl = config.getBaseUrl();
             while (true) {
                 QrCodeStatusResponse statusResponse = client.getQrcodeStatus(qrCodeResponse.qrcode(), qrBaseUrl);
-                String status = statusResponse.status();
-                if (status == null || status.isBlank()
-                        || ProtocolValues.QR_STATUS_WAIT.equals(status)
-                        || ProtocolValues.QR_STATUS_SCANED.equals(status)) {
+                QrCodeStatus status = statusResponse.status();
+                if (status == null || status == QrCodeStatus.WAIT || status == QrCodeStatus.SCANED) {
                     sleepQrPolling();
                     continue;
                 }
-                if (ProtocolValues.QR_STATUS_SCANED_BUT_REDIRECT.equals(status)) {
+                if (status == QrCodeStatus.SCANED_BUT_REDIRECT) {
                     qrBaseUrl = normalizeQrBaseUrl(statusResponse.redirectHost(), qrBaseUrl);
                     continue;
                 }
-                if (ProtocolValues.QR_STATUS_CONFIRMED.equals(status)) {
+                if (status == QrCodeStatus.CONFIRMED) {
                     return client.toAuthSession(statusResponse);
                 }
-                if (ProtocolValues.QR_STATUS_EXPIRED.equals(status)) {
+                if (status == QrCodeStatus.EXPIRED) {
                     LOG.info("QR code expired, requesting a new QR code");
                     break;
                 }
@@ -743,8 +750,8 @@ public final class ILinkBot implements AutoCloseable {
                 null,
                 null,
                 null,
-                ProtocolValues.MESSAGE_TYPE_BOT,
-                ProtocolValues.MESSAGE_STATE_FINISH,
+                MessageType.BOT,
+                MessageState.FINISH,
                 List.of(item),
                 contextToken
         );
@@ -772,12 +779,13 @@ public final class ILinkBot implements AutoCloseable {
         return Base64.getEncoder().encodeToString(aesKeyHex.getBytes(StandardCharsets.US_ASCII));
     }
 
-    private static int toUploadMediaType(int itemType) {
+    private static int toUploadMediaType(MessageItemType itemType) {
         return switch (itemType) {
-            case ProtocolValues.ITEM_TYPE_IMAGE -> 1;
-            case ProtocolValues.ITEM_TYPE_VIDEO -> 2;
-            case ProtocolValues.ITEM_TYPE_FILE -> 3;
-            case ProtocolValues.ITEM_TYPE_VOICE -> 4;
+            // 引用协议枚举 MessageItemType，映射到 getuploadurl.media_type。
+            case IMAGE -> 1;
+            case VIDEO -> 2;
+            case FILE -> 3;
+            case VOICE -> 4;
             default -> throw new ILinkException("Unsupported media item type: " + itemType);
         };
     }

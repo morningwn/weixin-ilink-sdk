@@ -5,8 +5,8 @@ import io.github.morningwn.client.ILinkBot;
 import io.github.morningwn.client.ILinkClientConfig;
 import io.github.morningwn.handler.SessionHandler;
 import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.ProtocolValues;
 import io.github.morningwn.protocol.QrCodeResponse;
+import io.github.morningwn.protocol.enums.MessageItemType;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
@@ -61,7 +61,7 @@ public final class QuickStartExampleTest {
                     return;
                 }
                 for (MessageItem item : message.itemList()) {
-                    if (item != null && item.type() == ProtocolValues.ITEM_TYPE_TEXT && item.textItem() != null) {
+                    if (item != null && item.type() == MessageItemType.TEXT && item.textItem() != null) {
                         String text = item.textItem().text();
                         System.out.println("[inbound] from=" + message.fromUserId() + " text=" + text);
                         latestReplyTarget.set(new ReplyTarget(message.fromUserId(), message.contextToken()));

@@ -3,7 +3,7 @@ package io.github.morningwn.client;
 import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.handler.SessionHandler;
 import io.github.morningwn.protocol.GetUpdatesResponse;
-import io.github.morningwn.protocol.ProtocolValues;
+import io.github.morningwn.protocol.enums.BusinessCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -76,8 +76,8 @@ class ILinkBotShutdownTest {
                 throw new ILinkException("HTTP request interrupted", e);
             }
             return new GetUpdatesResponse(
-                    ProtocolValues.RET_OK,
-                    ProtocolValues.RET_OK,
+                    BusinessCode.OK.code(),
+                    BusinessCode.OK.code(),
                     null,
                     List.of(),
                     getUpdatesBuf,

@@ -14,7 +14,6 @@ import io.github.morningwn.protocol.GetUpdatesResponse;
 import io.github.morningwn.protocol.GetUploadUrlRequest;
 import io.github.morningwn.protocol.GetUploadUrlResponse;
 import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.ProtocolValues;
 import io.github.morningwn.protocol.QrCodeResponse;
 import io.github.morningwn.protocol.QrCodeStatusResponse;
 import io.github.morningwn.protocol.SendMessageRequest;
@@ -23,6 +22,12 @@ import io.github.morningwn.protocol.SendTypingRequest;
 import io.github.morningwn.protocol.SendTypingResponse;
 import io.github.morningwn.protocol.TextItem;
 import io.github.morningwn.protocol.WeixinMessage;
+import io.github.morningwn.protocol.enums.BusinessCode;
+import io.github.morningwn.protocol.enums.MessageItemType;
+import io.github.morningwn.protocol.enums.MessageState;
+import io.github.morningwn.protocol.enums.MessageType;
+import io.github.morningwn.protocol.enums.QrCodeStatus;
+import io.github.morningwn.protocol.enums.TypingStatus;
 import io.github.morningwn.util.ClientIdGenerator;
 import io.github.morningwn.util.CryptoUtils;
 import io.github.morningwn.util.HexUtils;
@@ -179,7 +184,7 @@ public class ILinkClient implements AutoCloseable {
      */
     public ILinkAuthSession toAuthSession(QrCodeStatusResponse statusResponse) {
         Objects.requireNonNull(statusResponse, "statusResponse cannot be null");
-        if (!ProtocolValues.QR_STATUS_CONFIRMED.equals(statusResponse.status())) {
+        if (statusResponse.status() != QrCodeStatus.CONFIRMED) {
             throw new ILinkException("QR status is not confirmed: " + statusResponse.status());
         }
         requireNonBlank(statusResponse.botToken(), "bot_token");
@@ -289,7 +294,7 @@ public class ILinkClient implements AutoCloseable {
             String chunk = chunks.get(i);
             LOG.debug("Sending text chunk {}/{}, length={}", i + 1, chunks.size(), chunk.length());
             MessageItem item = new MessageItem(
-                    ProtocolValues.ITEM_TYPE_TEXT,
+                    MessageItemType.TEXT,
                     null,
                     null,
                     null,
@@ -312,8 +317,8 @@ public class ILinkClient implements AutoCloseable {
                     null,
                     null,
                     null,
-                    ProtocolValues.MESSAGE_TYPE_BOT,
-                    ProtocolValues.MESSAGE_STATE_FINISH,
+                    MessageType.BOT,
+                    MessageState.FINISH,
                     List.of(item),
                     contextToken
             );
@@ -356,21 +361,19 @@ public class ILinkClient implements AutoCloseable {
      * @param session auth session
      * @param ilinkUserId target user id
      * @param typingTicket typing ticket
-     * @param status 1 start, 2 stop
+     * @param status typing status, see {@link TypingStatus}
      * @return sendtyping response
      */
     public SendTypingResponse sendTyping(
             ILinkAuthSession session,
             String ilinkUserId,
             String typingTicket,
-            int status
+            TypingStatus status
     ) {
         Objects.requireNonNull(session, "session cannot be null");
         requireNonBlank(ilinkUserId, "ilinkUserId");
         requireNonBlank(typingTicket, "typingTicket");
-        if (status != ProtocolValues.TYPING_STATUS_START && status != ProtocolValues.TYPING_STATUS_STOP) {
-            throw new ILinkException("typing status must be 1(start) or 2(stop)");
-        }
+        Objects.requireNonNull(status, "status cannot be null");
 
         SendTypingRequest request = new SendTypingRequest(
                 ilinkUserId,
@@ -615,8 +618,8 @@ public class ILinkClient implements AutoCloseable {
     }
 
     private static void assertBusinessSuccess(Integer ret, Integer errcode, String errmsg, int statusCode) {
-        boolean retFail = ret != null && ret != ProtocolValues.RET_OK;
-        boolean errFail = errcode != null && errcode != ProtocolValues.RET_OK;
+        boolean retFail = ret != null && ret != BusinessCode.OK.code();
+        boolean errFail = errcode != null && errcode != BusinessCode.OK.code();
         if (!retFail && !errFail) {
             return;
         }
@@ -624,8 +627,8 @@ public class ILinkClient implements AutoCloseable {
         Integer effectiveErr = errcode != null ? errcode : ret;
         String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
 
-        boolean sessionExpired = ProtocolValues.RET_SESSION_EXPIRED == effectiveRet
-                || ProtocolValues.RET_SESSION_EXPIRED == effectiveErr;
+        boolean sessionExpired = BusinessCode.SESSION_EXPIRED.code() == effectiveRet
+            || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
         if (sessionExpired) {
             LOG.warn("Business request session expired, ret={}, errcode={}, status={}",
                 effectiveRet, effectiveErr, statusCode);

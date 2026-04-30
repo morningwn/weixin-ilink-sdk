@@ -3,11 +3,16 @@ package io.github.morningwn.protocol;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.morningwn.protocol.enums.MessageState;
+import io.github.morningwn.protocol.enums.MessageType;
 
 import java.util.List;
 
 /**
  * Core message structure for inbound and outbound traffic.
+ *
+ * @param messageType protocol message type, see {@link MessageType}
+ * @param messageState protocol message state, see {@link MessageState}
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -22,8 +27,8 @@ public record WeixinMessage(
         @JsonProperty("delete_time_ms") Long deleteTimeMs,
         @JsonProperty("session_id") String sessionId,
         @JsonProperty("group_id") String groupId,
-        @JsonProperty("message_type") Integer messageType,
-        @JsonProperty("message_state") Integer messageState,
+        @JsonProperty("message_type") MessageType messageType,
+        @JsonProperty("message_state") MessageState messageState,
         @JsonProperty("item_list") List<MessageItem> itemList,
         @JsonProperty("context_token") String contextToken
 ) {

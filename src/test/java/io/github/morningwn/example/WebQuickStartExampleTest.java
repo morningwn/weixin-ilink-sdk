@@ -10,10 +10,10 @@ import io.github.morningwn.protocol.CDNMedia;
 import io.github.morningwn.protocol.FileItem;
 import io.github.morningwn.protocol.ImageItem;
 import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.ProtocolValues;
 import io.github.morningwn.protocol.QrCodeResponse;
 import io.github.morningwn.protocol.VoiceItem;
 import io.github.morningwn.protocol.WeixinMessage;
+import io.github.morningwn.protocol.enums.MessageItemType;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -247,10 +247,10 @@ public final class WebQuickStartExampleTest {
                 continue;
             }
             switch (item.type()) {
-                case ProtocolValues.ITEM_TYPE_TEXT -> handleInboundText(message, item, eventStore);
-                case ProtocolValues.ITEM_TYPE_IMAGE -> handleInboundImage(message, item.imageItem(), eventStore, cdnClient);
-                case ProtocolValues.ITEM_TYPE_VOICE -> handleInboundVoice(message, item.voiceItem(), eventStore, cdnClient);
-                case ProtocolValues.ITEM_TYPE_FILE -> handleInboundFile(message, item.fileItem(), eventStore, cdnClient);
+                case TEXT -> handleInboundText(message, item, eventStore);
+                case IMAGE -> handleInboundImage(message, item.imageItem(), eventStore, cdnClient);
+                case VOICE -> handleInboundVoice(message, item.voiceItem(), eventStore, cdnClient);
+                case FILE -> handleInboundFile(message, item.fileItem(), eventStore, cdnClient);
                 default -> {
                     // ignore unsupported item types in this demo
                 }
