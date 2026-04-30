@@ -3,19 +3,32 @@ package io.github.morningwn.protocol.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
  * Message state in iLink protocol.
  */
 public enum MessageState {
 
-    /** New state. */
+    /**
+     * New state.
+     */
     NEW(0),
-    /** Generating state. */
+    /**
+     * Generating state.
+     */
     GENERATING(1),
-    /** Finish state. */
+    /**
+     * Finish state.
+     */
     FINISH(2);
 
     private final int code;
+
+    private static final Map<Integer, MessageState> CODE_MAP = Arrays.stream(values()).collect(Collectors.toMap(x -> x.code, Function.identity()));
 
     MessageState(int code) {
         this.code = code;
@@ -37,14 +50,6 @@ public enum MessageState {
      */
     @JsonCreator
     public static MessageState fromCode(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        for (MessageState value : values()) {
-            if (value.code == code) {
-                return value;
-            }
-        }
-        return null;
+        return CODE_MAP.get(code);
     }
 }

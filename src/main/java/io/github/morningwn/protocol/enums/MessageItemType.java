@@ -3,23 +3,41 @@ package io.github.morningwn.protocol.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
  * Message item type in iLink protocol.
  */
 public enum MessageItemType {
 
-    /** Text item. */
+    /**
+     * Text item.
+     */
     TEXT(1),
-    /** Image item. */
+    /**
+     * Image item.
+     */
     IMAGE(2),
-    /** Voice item. */
+    /**
+     * Voice item.
+     */
     VOICE(3),
-    /** File item. */
+    /**
+     * File item.
+     */
     FILE(4),
-    /** Video item. */
+    /**
+     * Video item.
+     */
     VIDEO(5);
 
     private final int code;
+
+    private static final Map<Integer, MessageItemType> CODE_MAP = Arrays.stream(values()).collect(Collectors.toMap(x -> x.code, Function.identity()));
+
 
     MessageItemType(int code) {
         this.code = code;
@@ -41,14 +59,6 @@ public enum MessageItemType {
      */
     @JsonCreator
     public static MessageItemType fromCode(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        for (MessageItemType value : values()) {
-            if (value.code == code) {
-                return value;
-            }
-        }
-        return null;
+        return CODE_MAP.get(code);
     }
 }

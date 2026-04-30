@@ -3,17 +3,28 @@ package io.github.morningwn.protocol.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
  * Message direction type in iLink protocol.
  */
 public enum MessageType {
 
-    /** User inbound message. */
+    /**
+     * User inbound message.
+     */
     USER(1),
-    /** Bot outbound message. */
+    /**
+     * Bot outbound message.
+     */
     BOT(2);
 
     private final int code;
+
+    private static final Map<Integer, MessageType> CODE_MAP = Arrays.stream(values()).collect(Collectors.toMap(x -> x.code, Function.identity()));
 
     MessageType(int code) {
         this.code = code;
@@ -35,14 +46,6 @@ public enum MessageType {
      */
     @JsonCreator
     public static MessageType fromCode(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        for (MessageType value : values()) {
-            if (value.code == code) {
-                return value;
-            }
-        }
-        return null;
+        return CODE_MAP.get(code);
     }
 }

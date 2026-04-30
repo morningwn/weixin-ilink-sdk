@@ -3,17 +3,28 @@ package io.github.morningwn.protocol.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
  * Typing status in iLink protocol.
  */
 public enum TypingStatus {
 
-    /** Start or keep typing. */
+    /**
+     * Start or keep typing.
+     */
     START(1),
-    /** Stop typing. */
+    /**
+     * Stop typing.
+     */
     STOP(2);
 
     private final int code;
+
+    private static final Map<Integer, TypingStatus> CODE_MAP = Arrays.stream(values()).collect(Collectors.toMap(x -> x.code, Function.identity()));
 
     TypingStatus(int code) {
         this.code = code;
@@ -35,14 +46,6 @@ public enum TypingStatus {
      */
     @JsonCreator
     public static TypingStatus fromCode(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        for (TypingStatus value : values()) {
-            if (value.code == code) {
-                return value;
-            }
-        }
-        return null;
+        return CODE_MAP.get(code);
     }
 }
