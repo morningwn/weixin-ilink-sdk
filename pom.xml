@@ -6,7 +6,7 @@
 
     <groupId>io.github.morningwn</groupId>
     <artifactId>weixin-ilink-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <name>weixin-ilink-sdk</name>
     <description>Java SDK for the WeChat iLink protocol.</description>
     <url>https://github.com/morningwn/weixin-ilink-sdk</url>
