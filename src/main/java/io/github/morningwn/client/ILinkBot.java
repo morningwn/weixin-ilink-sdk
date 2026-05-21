@@ -410,6 +410,20 @@ public final class ILinkBot implements AutoCloseable {
     }
 
     /**
+     * 下载并解密 CDN 媒体内容。
+     *
+     * <p>图片消息可传入 image_item.aeskey 的十六进制值优先解密；
+     * 其他类型可传 {@code null}，使用 media.aes_key。</p>
+     *
+     * @param media CDN 媒体引用
+     * @param imageAesKeyHex image_item.aeskey 的十六进制值，可为空
+     * @return 解密后的字节内容
+     */
+    public byte[] downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
+        return client.downloadAndDecryptMedia(media, imageAesKeyHex);
+    }
+
+    /**
      * Stops background tasks and closes internally owned HTTP client.
      */
     @Override

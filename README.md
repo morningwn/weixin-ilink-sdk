@@ -96,6 +96,7 @@ public final class BotDemo {
 - `sendFile(toUserId, contextToken, Path/byte[])`：发送文件（自动上传）
 - `sendVoice(toUserId, contextToken, bytes, playtime)`：发送语音
 - `sendVideo(toUserId, contextToken, bytes)`：发送视频
+- `downloadAndDecryptMedia(media, imageAesKeyHex)`：下载并解密媒体（图片可传 image_item.aeskey）
 
 ## 可执行示例
 
