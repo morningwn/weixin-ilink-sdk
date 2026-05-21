@@ -8,12 +8,12 @@ import io.github.morningwn.protocol.enums.QrCodeStatus;
 /**
  * Response payload for get_qrcode_status.
  *
- * @param status qr status, see {@link QrCodeStatus}
+ * @param status       qr status, see {@link QrCodeStatus}
  * @param redirectHost idc redirect host
- * @param botToken bot token when confirmed
- * @param ilinkBotId bot account id
- * @param ilinkUserId wechat user id
- * @param baseurl business base url
+ * @param botToken     bot token when confirmed
+ * @param ilinkBotId   bot account id
+ * @param ilinkUserId  wechat user id
+ * @param baseurl      business base url
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)

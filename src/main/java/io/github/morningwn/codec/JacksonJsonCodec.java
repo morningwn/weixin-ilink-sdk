@@ -1,10 +1,10 @@
 package io.github.morningwn.codec;
 
+import io.github.morningwn.exception.ILinkException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
-import io.github.morningwn.exception.ILinkException;
 
 /**
  * Jackson-based JSON codec implementation.
@@ -18,8 +18,8 @@ public final class JacksonJsonCodec implements JsonCodec {
      */
     public JacksonJsonCodec() {
         this.objectMapper = JsonMapper.builder()
-            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-            .build();
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
     }
 
     @Override

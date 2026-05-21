@@ -54,10 +54,10 @@ public interface SessionHandler {
      * Applications can return current cursor to postpone commit when external durability
      * (for example database flush) is not finished.</p>
      *
-     * @param currentGetUpdatesBuf currently committed cursor
+     * @param currentGetUpdatesBuf   currently committed cursor
      * @param suggestedGetUpdatesBuf cursor suggested by latest getupdates response
-     * @param receivedMessages messages returned in latest batch
-     * @param fullyProcessed whether this batch has been fully processed by message handler
+     * @param receivedMessages       messages returned in latest batch
+     * @param fullyProcessed         whether this batch has been fully processed by message handler
      * @return confirmed cursor to commit; return current cursor to skip commit
      */
     default String confirmGetUpdatesBuf(

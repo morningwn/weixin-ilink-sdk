@@ -110,18 +110,18 @@ public class ILinkClient implements AutoCloseable {
      */
     public ILinkClient(ILinkClientConfig config) {
         this(config,
-            HttpClient.newBuilder()
-                .connectTimeout(config.getConnectTimeout())
-                .build(),
+                HttpClient.newBuilder()
+                        .connectTimeout(config.getConnectTimeout())
+                        .build(),
                 new JacksonJsonCodec());
     }
 
     /**
      * Creates a client with provided dependencies.
      *
-     * @param config client config
+     * @param config     client config
      * @param httpClient JDK http client
-     * @param jsonCodec json codec
+     * @param jsonCodec  json codec
      */
     public ILinkClient(ILinkClientConfig config, HttpClient httpClient, JsonCodec jsonCodec) {
         this.config = Objects.requireNonNull(config, "config cannot be null");
@@ -138,9 +138,9 @@ public class ILinkClient implements AutoCloseable {
         String path = PATH_GET_BOT_QRCODE + QUERY_SEPARATOR + PARAM_BOT_TYPE + QUERY_ASSIGN + config.getBotType();
         LOG.debug("Requesting bot qrcode, botType={}", config.getBotType());
         HttpRequest request = withLoginHeaders(HttpRequest.newBuilder()
-            .uri(URI.create(buildUrl(config.getBaseUrl(), path)))
-            .timeout(config.getRequestTimeout())
-            .GET())
+                .uri(URI.create(buildUrl(config.getBaseUrl(), path)))
+                .timeout(config.getRequestTimeout())
+                .GET())
                 .build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeResponse.class);
@@ -159,7 +159,7 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Calls get_qrcode_status endpoint using custom base URL.
      *
-     * @param qrcode qr polling token
+     * @param qrcode  qr polling token
      * @param baseUrl target base URL, used for redirect host handling
      * @return qr status response
      */
@@ -168,9 +168,9 @@ public class ILinkClient implements AutoCloseable {
         String path = PATH_GET_QRCODE_STATUS + QUERY_SEPARATOR + PARAM_QRCODE + QUERY_ASSIGN + urlEncode(qrcode);
         LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
         HttpRequest request = withLoginHeaders(HttpRequest.newBuilder()
-            .uri(URI.create(buildUrl(baseUrl, path)))
-            .timeout(config.getRequestTimeout())
-            .GET())
+                .uri(URI.create(buildUrl(baseUrl, path)))
+                .timeout(config.getRequestTimeout())
+                .GET())
                 .build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeStatusResponse.class);
@@ -195,7 +195,7 @@ public class ILinkClient implements AutoCloseable {
             baseUrl = config.getBaseUrl();
         }
         LOG.info("Auth session confirmed, botId={}, userId={}, baseUrl={}",
-            statusResponse.ilinkBotId(), statusResponse.ilinkUserId(), baseUrl);
+                statusResponse.ilinkBotId(), statusResponse.ilinkUserId(), baseUrl);
         return new ILinkAuthSession(
                 statusResponse.botToken(),
                 baseUrl,
@@ -207,7 +207,7 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Calls getupdates with current cursor.
      *
-     * @param session auth session
+     * @param session       auth session
      * @param getUpdatesBuf opaque cursor, empty string for first call
      * @return updates response
      */
@@ -218,9 +218,9 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Calls getupdates with current cursor and custom timeout for this request.
      *
-     * @param session auth session
+     * @param session       auth session
      * @param getUpdatesBuf opaque cursor, empty string for first call
-     * @param timeout request timeout for this call
+     * @param timeout       request timeout for this call
      * @return updates response
      */
     public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf, Duration timeout) {
@@ -246,7 +246,7 @@ public class ILinkClient implements AutoCloseable {
      * Sends a prepared message body.
      *
      * @param session auth session
-     * @param msg message payload
+     * @param msg     message payload
      * @return send response body
      */
     public SendMessageResponse sendMessage(ILinkAuthSession session, WeixinMessage msg) {
@@ -268,10 +268,10 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Sends long text by splitting to multiple FINISH text messages.
      *
-     * @param session auth session
-     * @param toUserId target user id
-     * @param contextToken conversation context token
-     * @param text text content
+     * @param session        auth session
+     * @param toUserId       target user id
+     * @param contextToken   conversation context token
+     * @param text           text content
      * @param clientIdPrefix client id prefix
      * @return send responses in order
      */
@@ -330,8 +330,8 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Gets typing ticket for one target user.
      *
-     * @param session auth session
-     * @param ilinkUserId target user id
+     * @param session      auth session
+     * @param ilinkUserId  target user id
      * @param contextToken context token
      * @return getconfig response
      */
@@ -358,10 +358,10 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Sends typing status to one target user.
      *
-     * @param session auth session
-     * @param ilinkUserId target user id
+     * @param session      auth session
+     * @param ilinkUserId  target user id
      * @param typingTicket typing ticket
-     * @param status typing status, see {@link TypingStatus}
+     * @param status       typing status, see {@link TypingStatus}
      * @return sendtyping response
      */
     public SendTypingResponse sendTyping(
@@ -418,9 +418,9 @@ public class ILinkClient implements AutoCloseable {
     /**
      * Uploads encrypted media to CDN.
      *
-     * @param uploadFullUrl full upload URL from getuploadurl, may be empty
-     * @param uploadParam encrypted query parameter fallback
-     * @param fileKey upload file key
+     * @param uploadFullUrl  full upload URL from getuploadurl, may be empty
+     * @param uploadParam    encrypted query parameter fallback
+     * @param fileKey        upload file key
      * @param encryptedBytes encrypted payload bytes
      * @return upload result with x-encrypted-param header
      */
@@ -446,17 +446,17 @@ public class ILinkClient implements AutoCloseable {
         LOG.info("Uploading encrypted media to CDN, payloadSize={} bytes", encryptedBytes.length);
 
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(target))
-            .timeout(config.getRequestTimeout())
-            .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_OCTET_STREAM)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
+                .uri(URI.create(target))
+                .timeout(config.getRequestTimeout())
+                .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_OCTET_STREAM)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
                 .build();
 
         RawHttpResponse response = sendResponse(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_CDN_UPLOAD_FAILED);
         String encryptedParam = response.headers().firstValue(HEADER_ENCRYPTED_PARAM).orElse(null);
         LOG.debug("CDN upload succeeded, status={}, hasEncryptedParam={}",
-            response.statusCode(), encryptedParam != null && !encryptedParam.isBlank());
+                response.statusCode(), encryptedParam != null && !encryptedParam.isBlank());
         return new CdnUploadResult(response.statusCode(), encryptedParam);
     }
 
@@ -467,6 +467,28 @@ public class ILinkClient implements AutoCloseable {
      * @return encrypted bytes from CDN
      */
     public byte[] downloadEncryptedMedia(CDNMedia media) {
+        return downloadEncryptedMediaResponse(media).body();
+    }
+
+    /**
+     * 下载并解密媒体，同时返回响应 Content-Type。
+     *
+     * <p>图片消息可传入 image_item.aeskey 的十六进制值优先解密；
+     * 其他类型可传 {@code null}，使用 media.aes_key。</p>
+     *
+     * @param media          CDN 媒体引用
+     * @param imageAesKeyHex image_item.aeskey 的十六进制值，可为空
+     * @return 解密后的内容与 Content-Type（可能为空）
+     */
+    public DownloadedMedia downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
+        RawHttpResponse response = downloadEncryptedMediaResponse(media);
+        byte[] key = resolveMediaKey(media, imageAesKeyHex);
+        byte[] plaintext = CryptoUtils.decryptAesEcb(response.body(), key);
+        String contentType = resolveContentType(response.headers());
+        return new DownloadedMedia(plaintext, contentType);
+    }
+
+    private RawHttpResponse downloadEncryptedMediaResponse(CDNMedia media) {
         Objects.requireNonNull(media, "media cannot be null");
 
         String target;
@@ -481,34 +503,29 @@ public class ILinkClient implements AutoCloseable {
         LOG.debug("Downloading encrypted media from CDN");
 
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(target))
-            .timeout(config.getRequestTimeout())
-            .GET()
+                .uri(URI.create(target))
+                .timeout(config.getRequestTimeout())
+                .GET()
                 .build();
         RawHttpResponse response = sendResponse(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_CDN_DOWNLOAD_FAILED);
-        LOG.debug("CDN download succeeded, status={}, size={} bytes",
-            response.statusCode(), response.body().length);
-        return response.body();
+        LOG.debug("CDN download succeeded, status={}, size={} bytes", response.statusCode(), response.body().length);
+        return response;
     }
 
-    /**
-     * Downloads and decrypts media using key priority from spec.
-     *
-     * @param media CDN media reference
-     * @param imageAesKeyHex optional image_item.aeskey in hex form
-     * @return plaintext bytes
-     */
-    public byte[] downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
-        byte[] encrypted = downloadEncryptedMedia(media);
-        byte[] key;
+    private static byte[] resolveMediaKey(CDNMedia media, String imageAesKeyHex) {
         if (imageAesKeyHex != null && !imageAesKeyHex.isBlank()) {
-            key = HexUtils.fromHex(imageAesKeyHex);
-        } else {
-            requireNonBlank(media.aesKey(), "media.aesKey");
-            key = CryptoUtils.decodeCompatibleAesKey(media.aesKey());
+            return HexUtils.fromHex(imageAesKeyHex);
         }
-        return CryptoUtils.decryptAesEcb(encrypted, key);
+        requireNonBlank(media.aesKey(), "media.aesKey");
+        return CryptoUtils.decodeCompatibleAesKey(media.aesKey());
+    }
+
+    private static String resolveContentType(HttpHeaders headers) {
+        if (headers == null) {
+            return null;
+        }
+        return headers.firstValue(HEADER_CONTENT_TYPE).orElse(null);
     }
 
     /**
@@ -628,14 +645,14 @@ public class ILinkClient implements AutoCloseable {
         String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
 
         boolean sessionExpired = BusinessCode.SESSION_EXPIRED.code() == effectiveRet
-            || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
+                || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
         if (sessionExpired) {
             LOG.warn("Business request session expired, ret={}, errcode={}, status={}",
-                effectiveRet, effectiveErr, statusCode);
+                    effectiveRet, effectiveErr, statusCode);
             throw new SessionExpiredException(message, effectiveRet, effectiveErr, statusCode);
         }
         LOG.warn("Business request failed, ret={}, errcode={}, status={}, errmsg={}",
-            effectiveRet, effectiveErr, statusCode, message);
+                effectiveRet, effectiveErr, statusCode, message);
         throw new ILinkProtocolException(message, effectiveRet, effectiveErr, statusCode);
     }
 

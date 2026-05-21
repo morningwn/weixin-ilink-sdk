@@ -1,5 +1,9 @@
 package io.github.morningwn.example;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import io.github.morningwn.client.ILinkAuthSession;
 import io.github.morningwn.client.ILinkBot;
 import io.github.morningwn.client.ILinkClientConfig;
@@ -7,10 +11,6 @@ import io.github.morningwn.handler.SessionHandler;
 import io.github.morningwn.protocol.MessageItem;
 import io.github.morningwn.protocol.QrCodeResponse;
 import io.github.morningwn.protocol.enums.MessageItemType;
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.WriterException;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -102,98 +102,92 @@ public final class QuickStartExampleTest {
         }
     }
 
-    private static final class ConsoleSessionHandler implements SessionHandler {
-
-        private final Path sessionPath;
-
-        private ConsoleSessionHandler(Path sessionPath) {
-            this.sessionPath = sessionPath;
-        }
+    private record ConsoleSessionHandler(Path sessionPath) implements SessionHandler {
 
         @Override
-        public ILinkAuthSession loadSession() {
-            if (!Files.exists(sessionPath)) {
-                return null;
-            }
-            try {
-                List<String> lines = Files.readAllLines(sessionPath, StandardCharsets.UTF_8);
-                if (lines.size() < 4) {
+            public ILinkAuthSession loadSession() {
+                if (!Files.exists(sessionPath)) {
                     return null;
                 }
-                return new ILinkAuthSession(lines.get(0), lines.get(1), lines.get(2), lines.get(3));
-            } catch (IOException e) {
-                return null;
-            }
-        }
-
-        @Override
-        public void persistSession(ILinkAuthSession session) {
-            List<String> lines = List.of(
-                    safe(session.token()),
-                    safe(session.baseUrl()),
-                    safe(session.accountId()),
-                    safe(session.userId())
-            );
-            try {
-                Files.write(
-                        sessionPath,
-                        lines,
-                        StandardCharsets.UTF_8,
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE
-                );
-                System.out.println("[session] persisted to " + sessionPath.toAbsolutePath());
-            } catch (IOException e) {
-                System.out.println("[session] persist failed: " + e.getMessage());
-            }
-        }
-
-        @Override
-        public void clearSession(ILinkAuthSession expiredSession) {
-            try {
-                Files.deleteIfExists(sessionPath);
-                System.out.println("[session] expired session cleared");
-            } catch (IOException e) {
-                System.out.println("[session] clear failed: " + e.getMessage());
-            }
-        }
-
-        @Override
-        public void onQrcode(QrCodeResponse qrCodeResponse) {
-            String qrUrl = Optional.ofNullable(qrCodeResponse)
-                    .map(QrCodeResponse::qrcodeImgContent)
-                    .orElse("");
-            System.out.println("========================================");
-            System.out.println("请扫码登录微信 iLink");
-            System.out.println("二维码链接: " + qrUrl);
-            renderQrcodeToConsole(qrUrl);
-            System.out.println("========================================");
-        }
-
-        private static void renderQrcodeToConsole(String content) {
-            if (content == null || content.isBlank()) {
-                return;
-            }
-            try {
-                BitMatrix matrix = new QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 1, 1);
-                int width = matrix.getWidth();
-                int height = matrix.getHeight();
-                int quietZone = 2;
-
-                for (int y = -quietZone; y < height + quietZone; y++) {
-                    StringBuilder row = new StringBuilder((width + quietZone * 2) * 2);
-                    for (int x = -quietZone; x < width + quietZone; x++) {
-                        boolean dark = x >= 0 && x < width && y >= 0 && y < height && matrix.get(x, y);
-                        row.append(dark ? "██" : "  ");
+                try {
+                    List<String> lines = Files.readAllLines(sessionPath, StandardCharsets.UTF_8);
+                    if (lines.size() < 4) {
+                        return null;
                     }
-                    System.out.println(row);
+                    return new ILinkAuthSession(lines.get(0), lines.get(1), lines.get(2), lines.get(3));
+                } catch (IOException e) {
+                    return null;
                 }
-            } catch (WriterException e) {
-                System.out.println("[warn] 二维码渲染失败: " + e.getMessage());
+            }
+
+            @Override
+            public void persistSession(ILinkAuthSession session) {
+                List<String> lines = List.of(
+                        safe(session.token()),
+                        safe(session.baseUrl()),
+                        safe(session.accountId()),
+                        safe(session.userId())
+                );
+                try {
+                    Files.write(
+                            sessionPath,
+                            lines,
+                            StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE
+                    );
+                    System.out.println("[session] persisted to " + sessionPath.toAbsolutePath());
+                } catch (IOException e) {
+                    System.out.println("[session] persist failed: " + e.getMessage());
+                }
+            }
+
+            @Override
+            public void clearSession(ILinkAuthSession expiredSession) {
+                try {
+                    Files.deleteIfExists(sessionPath);
+                    System.out.println("[session] expired session cleared");
+                } catch (IOException e) {
+                    System.out.println("[session] clear failed: " + e.getMessage());
+                }
+            }
+
+            @Override
+            public void onQrcode(QrCodeResponse qrCodeResponse) {
+                String qrUrl = Optional.ofNullable(qrCodeResponse)
+                        .map(QrCodeResponse::qrcodeImgContent)
+                        .orElse("");
+                System.out.println("========================================");
+                System.out.println("请扫码登录微信 iLink");
+                System.out.println("二维码链接: " + qrUrl);
+                renderQrcodeToConsole(qrUrl);
+                System.out.println("========================================");
+            }
+
+            private static void renderQrcodeToConsole(String content) {
+                if (content == null || content.isBlank()) {
+                    return;
+                }
+                try {
+                    BitMatrix matrix = new QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 1, 1);
+                    int width = matrix.getWidth();
+                    int height = matrix.getHeight();
+                    int quietZone = 2;
+
+                    for (int y = -quietZone; y < height + quietZone; y++) {
+                        StringBuilder row = new StringBuilder((width + quietZone * 2) * 2);
+                        for (int x = -quietZone; x < width + quietZone; x++) {
+                            boolean dark = x >= 0 && x < width && y >= 0 && y < height && matrix.get(x, y);
+                            row.append(dark ? "██" : "  ");
+                        }
+                        System.out.println(row);
+                    }
+                } catch (WriterException e) {
+                    System.out.println("[warn] 二维码渲染失败: " + e.getMessage());
+                }
             }
         }
-    }
 
     private static String safe(String value) {
         return value == null ? "" : value;

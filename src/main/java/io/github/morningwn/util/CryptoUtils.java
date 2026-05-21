@@ -20,7 +20,7 @@ public final class CryptoUtils {
      * Encrypts plaintext with AES-128-ECB and PKCS7-compatible padding.
      *
      * @param plaintext source bytes
-     * @param key 16-byte AES key
+     * @param key       16-byte AES key
      * @return encrypted bytes
      */
     public static byte[] encryptAesEcb(byte[] plaintext, byte[] key) {
@@ -38,7 +38,7 @@ public final class CryptoUtils {
      * Decrypts ciphertext with AES-128-ECB and PKCS7-compatible padding.
      *
      * @param ciphertext encrypted bytes
-     * @param key 16-byte AES key
+     * @param key        16-byte AES key
      * @return decrypted bytes
      */
     public static byte[] decryptAesEcb(byte[] ciphertext, byte[] key) {

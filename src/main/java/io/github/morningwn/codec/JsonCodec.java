@@ -18,7 +18,7 @@ public interface JsonCodec {
      *
      * @param json json string
      * @param type target class
-     * @param <T> target generic type
+     * @param <T>  target generic type
      * @return decoded object
      */
     <T> T fromJson(String json, Class<T> type);

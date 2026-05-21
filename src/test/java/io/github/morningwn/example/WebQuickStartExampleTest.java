@@ -288,13 +288,13 @@ public final class WebQuickStartExampleTest {
         String previewUrl = "/media/" + urlEncodeSegment(localPath.getFileName().toString());
 
         eventStore.add(
-            "inbound",
-            "image",
-            message.fromUserId(),
-            fileName,
-            localPath.getFileName().toString(),
-            downloadUrl,
-            previewUrl
+                "inbound",
+                "image",
+                message.fromUserId(),
+                fileName,
+                localPath.getFileName().toString(),
+                downloadUrl,
+                previewUrl
         );
         System.out.println("[inbound:image] from=" + message.fromUserId() + " saved=" + localPath.toAbsolutePath());
     }
@@ -315,13 +315,13 @@ public final class WebQuickStartExampleTest {
         String previewUrl = "/media/" + urlEncodeSegment(localPath.getFileName().toString());
 
         eventStore.add(
-            "inbound",
-            "voice",
-            message.fromUserId(),
-            fileName,
-            localPath.getFileName().toString(),
-            downloadUrl,
-            previewUrl
+                "inbound",
+                "voice",
+                message.fromUserId(),
+                fileName,
+                localPath.getFileName().toString(),
+                downloadUrl,
+                previewUrl
         );
         System.out.println("[inbound:voice] from=" + message.fromUserId() + " saved=" + localPath.toAbsolutePath());
     }
@@ -343,20 +343,20 @@ public final class WebQuickStartExampleTest {
         String previewUrl = "/media/" + urlEncodeSegment(localPath.getFileName().toString());
 
         eventStore.add(
-            "inbound",
-            "file",
-            message.fromUserId(),
-            sourceName,
-            localPath.getFileName().toString(),
-            downloadUrl,
-            previewUrl
+                "inbound",
+                "file",
+                message.fromUserId(),
+                sourceName,
+                localPath.getFileName().toString(),
+                downloadUrl,
+                previewUrl
         );
         System.out.println("[inbound:file] from=" + message.fromUserId() + " saved=" + localPath.toAbsolutePath());
     }
 
     private static byte[] downloadMediaBytes(ILinkClient cdnClient, CDNMedia media, String imageAesKeyHex) {
         try {
-            return cdnClient.downloadAndDecryptMedia(media, imageAesKeyHex);
+            return cdnClient.downloadAndDecryptMedia(media, imageAesKeyHex).content();
         } catch (Exception e) {
             throw new ILinkException("Failed to download media", e);
         }
@@ -733,13 +733,13 @@ public final class WebQuickStartExampleTest {
         }
 
         private void add(
-            String direction,
-            String kind,
-            String fromUserId,
-            String content,
-            String fileName,
-            String downloadUrl,
-            String previewUrl
+                String direction,
+                String kind,
+                String fromUserId,
+                String content,
+                String fileName,
+                String downloadUrl,
+                String previewUrl
         ) {
             long id = idCounter.incrementAndGet();
             long now = System.currentTimeMillis();

@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Core message structure for inbound and outbound traffic.
  *
- * @param messageType protocol message type, see {@link MessageType}
+ * @param messageType  protocol message type, see {@link MessageType}
  * @param messageState protocol message state, see {@link MessageState}
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

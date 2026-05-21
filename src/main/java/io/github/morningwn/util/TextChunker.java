@@ -10,7 +10,9 @@ import java.util.List;
  */
 public final class TextChunker {
 
-    /** Conservative compatibility limit from protocol practice. */
+    /**
+     * Conservative compatibility limit from protocol practice.
+     */
     public static final int DEFAULT_MAX_CHARS = 2000;
 
     private TextChunker() {
@@ -29,7 +31,7 @@ public final class TextChunker {
     /**
      * Splits text with boundary preference: double new line, new line, space, hard cut.
      *
-     * @param text input text
+     * @param text     input text
      * @param maxChars max chars of each chunk
      * @return ordered chunks
      */

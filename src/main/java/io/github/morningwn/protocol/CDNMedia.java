@@ -8,9 +8,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * CDN media reference shared by image/file/voice/video.
  *
  * @param encryptQueryParam encrypted query param for CDN access
- * @param aesKey base64-encoded key payload
- * @param encryptType encrypt type
- * @param fullUrl direct full URL if provided by server
+ * @param aesKey            base64-encoded key payload
+ * @param encryptType       encrypt type
+ * @param fullUrl           direct full URL if provided by server
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)

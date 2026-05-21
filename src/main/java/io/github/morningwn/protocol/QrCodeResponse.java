@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Response payload for get_bot_qrcode.
  *
- * @param qrcode qr polling token
+ * @param qrcode           qr polling token
  * @param qrcodeImgContent qr image content URL
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

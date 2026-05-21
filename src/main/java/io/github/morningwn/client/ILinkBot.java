@@ -82,7 +82,7 @@ public final class ILinkBot implements AutoCloseable {
      * Creates a bot facade with internal {@link ILinkClient}. Session will be restored by
      * {@link SessionHandler} or created via QR scan on demand.
      *
-     * @param config client config
+     * @param config         client config
      * @param sessionHandler optional handler for session persistence and QR notification
      */
     public ILinkBot(ILinkClientConfig config, SessionHandler sessionHandler) {
@@ -206,14 +206,14 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Sends text and automatically splits oversized content into multiple chunks.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param text text content
+     * @param text         text content
      * @return send responses in sending order
      */
     public List<SendMessageResponse> sendText(String toUserId, String contextToken, String text) {
         return executeWithSessionRetry(
-            currentSession -> client.sendText(currentSession, toUserId, contextToken, text, clientIdPrefix)
+                currentSession -> client.sendText(currentSession, toUserId, contextToken, text, clientIdPrefix)
         );
     }
 
@@ -221,7 +221,7 @@ public final class ILinkBot implements AutoCloseable {
      * Replies to an inbound message with text.
      *
      * @param inbound inbound message
-     * @param text reply content
+     * @param text    reply content
      * @return send responses in sending order
      */
     public List<SendMessageResponse> replyText(WeixinMessage inbound, String text) {
@@ -234,37 +234,37 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Uploads and sends one image.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param imageBytes image content bytes
+     * @param imageBytes   image content bytes
      * @return send response
      */
     public SendMessageResponse sendImage(String toUserId, String contextToken, byte[] imageBytes) {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.IMAGE, imageBytes);
             ImageItem imageItem = new ImageItem(
-                uploadedMedia.media(),
-                null,
-                uploadedMedia.aesKeyHex(),
-                null,
-                uploadedMedia.encryptedSize(),
-                null,
-                null,
-                null,
-                null
+                    uploadedMedia.media(),
+                    null,
+                    uploadedMedia.aesKeyHex(),
+                    null,
+                    uploadedMedia.encryptedSize(),
+                    null,
+                    null,
+                    null,
+                    null
             );
             MessageItem item = new MessageItem(
-                MessageItemType.IMAGE,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                imageItem,
-                null,
-                null,
-                null
+                    MessageItemType.IMAGE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    imageItem,
+                    null,
+                    null,
+                    null
             );
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
@@ -273,9 +273,9 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Uploads and sends one image from file path.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param imagePath image file path
+     * @param imagePath    image file path
      * @return send response
      */
     public SendMessageResponse sendImage(String toUserId, String contextToken, Path imagePath) {
@@ -285,10 +285,10 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Uploads and sends one file.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param fileName file name shown in message
-     * @param fileBytes file bytes
+     * @param fileName     file name shown in message
+     * @param fileBytes    file bytes
      * @return send response
      */
     public SendMessageResponse sendFile(String toUserId, String contextToken, String fileName, byte[] fileBytes) {
@@ -296,23 +296,23 @@ public final class ILinkBot implements AutoCloseable {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.FILE, fileBytes);
             FileItem fileItem = new FileItem(
-                uploadedMedia.media(),
-                fileName,
-                uploadedMedia.rawMd5(),
-                Long.toString(uploadedMedia.rawSize())
+                    uploadedMedia.media(),
+                    fileName,
+                    uploadedMedia.rawMd5(),
+                    Long.toString(uploadedMedia.rawSize())
             );
             MessageItem item = new MessageItem(
-                MessageItemType.FILE,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                fileItem,
-                null
+                    MessageItemType.FILE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    fileItem,
+                    null
             );
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
@@ -321,9 +321,9 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Uploads and sends one file from local path.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param filePath local file path
+     * @param filePath     local file path
      * @return send response
      */
     public SendMessageResponse sendFile(String toUserId, String contextToken, Path filePath) {
@@ -334,10 +334,10 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Uploads and sends one voice message.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param voiceBytes voice bytes
-     * @param playtime playtime in milliseconds
+     * @param voiceBytes   voice bytes
+     * @param playtime     playtime in milliseconds
      * @return send response
      */
     public SendMessageResponse sendVoice(String toUserId, String contextToken, byte[] voiceBytes, long playtime) {
@@ -347,25 +347,25 @@ public final class ILinkBot implements AutoCloseable {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VOICE, voiceBytes);
             VoiceItem voiceItem = new VoiceItem(
-                uploadedMedia.media(),
-                null,
-                null,
-                null,
-                playtime,
-                null
+                    uploadedMedia.media(),
+                    null,
+                    null,
+                    null,
+                    playtime,
+                    null
             );
             MessageItem item = new MessageItem(
-                MessageItemType.VOICE,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                voiceItem,
-                null,
-                null
+                    MessageItemType.VOICE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    voiceItem,
+                    null,
+                    null
             );
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
@@ -374,52 +374,52 @@ public final class ILinkBot implements AutoCloseable {
     /**
      * Uploads and sends one video message.
      *
-     * @param toUserId target user id
+     * @param toUserId     target user id
      * @param contextToken context token
-     * @param videoBytes video bytes
+     * @param videoBytes   video bytes
      * @return send response
      */
     public SendMessageResponse sendVideo(String toUserId, String contextToken, byte[] videoBytes) {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VIDEO, videoBytes);
             VideoItem videoItem = new VideoItem(
-                uploadedMedia.media(),
-                uploadedMedia.encryptedSize(),
-                null,
-                uploadedMedia.rawMd5(),
-                null,
-                null,
-                null,
-                null
+                    uploadedMedia.media(),
+                    uploadedMedia.encryptedSize(),
+                    null,
+                    uploadedMedia.rawMd5(),
+                    null,
+                    null,
+                    null,
+                    null
             );
             MessageItem item = new MessageItem(
-                MessageItemType.VIDEO,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                videoItem
+                    MessageItemType.VIDEO,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    videoItem
             );
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
 
     /**
-     * 下载并解密 CDN 媒体内容。
+     * 下载并解密 CDN 媒体内容，同时返回响应 Content-Type。
      *
      * <p>图片消息可传入 image_item.aeskey 的十六进制值优先解密；
      * 其他类型可传 {@code null}，使用 media.aes_key。</p>
      *
-     * @param media CDN 媒体引用
+     * @param media          CDN 媒体引用
      * @param imageAesKeyHex image_item.aeskey 的十六进制值，可为空
-     * @return 解密后的字节内容
+     * @return 解密后的内容与 Content-Type（可能为空）
      */
-    public byte[] downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
+    public DownloadedMedia downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
         return client.downloadAndDecryptMedia(media, imageAesKeyHex);
     }
 
@@ -579,7 +579,7 @@ public final class ILinkBot implements AutoCloseable {
                 aesKeyHex,
                 BaseInfo.of(config.getChannelVersion())
         );
-            GetUploadUrlResponse response = client.getUploadUrl(currentSession, request);
+        GetUploadUrlResponse response = client.getUploadUrl(currentSession, request);
 
         CdnUploadResult uploadResult = client.uploadEncryptedMedia(
                 response.uploadFullUrl(),

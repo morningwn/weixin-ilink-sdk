@@ -12,9 +12,9 @@ public class ILinkProtocolException extends ILinkException {
     /**
      * Creates a new protocol exception.
      *
-     * @param message error message
-     * @param ret response ret value
-     * @param errcode response errcode value
+     * @param message    error message
+     * @param ret        response ret value
+     * @param errcode    response errcode value
      * @param httpStatus HTTP status
      */
     public ILinkProtocolException(String message, Integer ret, Integer errcode, int httpStatus) {

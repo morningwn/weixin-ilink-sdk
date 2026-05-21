@@ -40,52 +40,72 @@ public final class ILinkClientConfig {
         return new Builder();
     }
 
-    /** @return business base url */
+    /**
+     * @return business base url
+     */
     public String getBaseUrl() {
         return baseUrl;
     }
 
-    /** @return cdn base url */
+    /**
+     * @return cdn base url
+     */
     public String getCdnBaseUrl() {
         return cdnBaseUrl;
     }
 
-    /** @return channel version for base_info */
+    /**
+     * @return channel version for base_info
+     */
     public String getChannelVersion() {
         return channelVersion;
     }
 
-    /** @return iLink-App-Id header value */
+    /**
+     * @return iLink-App-Id header value
+     */
     public String getAppId() {
         return appId;
     }
 
-    /** @return iLink-App-ClientVersion header value */
+    /**
+     * @return iLink-App-ClientVersion header value
+     */
     public String getAppClientVersion() {
         return appClientVersion;
     }
 
-    /** @return optional route tag */
+    /**
+     * @return optional route tag
+     */
     public String getRouteTag() {
         return routeTag;
     }
 
-    /** @return get_bot_qrcode bot_type */
+    /**
+     * @return get_bot_qrcode bot_type
+     */
     public int getBotType() {
         return botType;
     }
 
-    /** @return HTTP connect timeout */
+    /**
+     * @return HTTP connect timeout
+     */
     public Duration getConnectTimeout() {
         return connectTimeout;
     }
 
-    /** @return default request timeout */
+    /**
+     * @return default request timeout
+     */
     public Duration getRequestTimeout() {
         return requestTimeout;
     }
 
-    /** @return long polling timeout for getupdates */
+    /**
+     * @return long polling timeout for getupdates
+     */
     public Duration getLongPollingTimeout() {
         return longPollingTimeout;
     }

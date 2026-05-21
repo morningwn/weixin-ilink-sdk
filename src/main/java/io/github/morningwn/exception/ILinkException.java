@@ -18,7 +18,7 @@ public class ILinkException extends RuntimeException {
      * Creates a new exception.
      *
      * @param message error message
-     * @param cause root cause
+     * @param cause   root cause
      */
     public ILinkException(String message, Throwable cause) {
         super(message, cause);
