@@ -8,7 +8,7 @@
 
 - **语言**: Java 17
 - **构建工具**: Maven
-- **包名**: `com.github.morningwn`
+- **包名**: `io.github.morningwn`
 
 ## 编码规范
 
@@ -22,7 +22,7 @@
 ## 项目结构
 
 ```
-com.github.morningwn
+io.github.morningwn
 ├── protocol    # iLink 协议定义（消息类型、数据结构、常量）
 ├── codec       # 编解码器（序列化/反序列化）
 ├── client      # 客户端实现（连接管理、会话管理）
