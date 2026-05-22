@@ -1,8 +1,9 @@
-package io.github.morningwn.protocol;
+package io.github.morningwn.protocol.message;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.morningwn.protocol.CDNMedia;
 
 /**
  * Image message payload.
@@ -20,4 +21,8 @@ public record ImageItem(
         @JsonProperty("thumb_width") Integer thumbWidth,
         @JsonProperty("hd_size") Long hdSize
 ) {
+
+    public static ImageItem ofUpload(CDNMedia media, String aeskey, long encryptedSize) {
+        return new ImageItem(media, null, aeskey, null, encryptedSize, null, null, null, null);
+    }
 }

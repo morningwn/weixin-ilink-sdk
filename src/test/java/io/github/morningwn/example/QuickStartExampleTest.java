@@ -4,13 +4,13 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import io.github.morningwn.client.ILinkAuthSession;
 import io.github.morningwn.client.ILinkBot;
 import io.github.morningwn.client.ILinkClientConfig;
 import io.github.morningwn.handler.SessionHandler;
-import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.QrCodeResponse;
+import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.enums.MessageItemType;
+import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.response.QrCodeResponse;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -1,4 +1,4 @@
-package io.github.morningwn.client;
+package io.github.morningwn.protocol.response;
 
 /**
  * 下载媒体的内容与类型信息。

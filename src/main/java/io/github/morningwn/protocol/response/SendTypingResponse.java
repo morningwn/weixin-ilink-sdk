@@ -1,16 +1,17 @@
-package io.github.morningwn.protocol;
+package io.github.morningwn.protocol.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Referenced message information.
+ * Response body for sendtyping.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record RefMessage(
-        @JsonProperty("title") String title,
-        @JsonProperty("message_item") MessageItem messageItem
+public record SendTypingResponse(
+        @JsonProperty("ret") Integer ret,
+        @JsonProperty("errcode") Integer errcode,
+        @JsonProperty("errmsg") String errmsg
 ) {
 }

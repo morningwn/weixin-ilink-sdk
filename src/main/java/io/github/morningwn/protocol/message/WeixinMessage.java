@@ -1,4 +1,4 @@
-package io.github.morningwn.protocol;
+package io.github.morningwn.protocol.message;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -32,4 +32,14 @@ public record WeixinMessage(
         @JsonProperty("item_list") List<MessageItem> itemList,
         @JsonProperty("context_token") String contextToken
 ) {
+
+    public static WeixinMessage botFinish(
+            String toUserId, String clientId, List<MessageItem> itemList, String contextToken
+    ) {
+        return new WeixinMessage(
+                null, null, "", toUserId, clientId,
+                null, null, null, null, null,
+                MessageType.BOT, MessageState.FINISH, itemList, contextToken
+        );
+    }
 }

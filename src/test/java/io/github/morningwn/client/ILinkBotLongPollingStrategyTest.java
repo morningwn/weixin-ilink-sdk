@@ -2,8 +2,9 @@ package io.github.morningwn.client;
 
 import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.handler.SessionHandler;
-import io.github.morningwn.protocol.GetUpdatesResponse;
+import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.enums.BusinessCode;
+import io.github.morningwn.protocol.response.GetUpdatesResponse;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

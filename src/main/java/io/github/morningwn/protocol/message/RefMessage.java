@@ -1,17 +1,16 @@
-package io.github.morningwn.protocol;
+package io.github.morningwn.protocol.message;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Request body for getupdates.
+ * Referenced message information.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record GetUpdatesRequest(
-        @JsonProperty("get_updates_buf") String getUpdatesBuf,
-        @JsonProperty("base_info") BaseInfo baseInfo,
-        @JsonProperty("sync_buf") String syncBuf
+public record RefMessage(
+        @JsonProperty("title") String title,
+        @JsonProperty("message_item") MessageItem messageItem
 ) {
 }

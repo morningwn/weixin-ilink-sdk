@@ -1,4 +1,4 @@
-package io.github.morningwn.client;
+package io.github.morningwn.protocol.response;
 
 /**
  * Upload response details from CDN.

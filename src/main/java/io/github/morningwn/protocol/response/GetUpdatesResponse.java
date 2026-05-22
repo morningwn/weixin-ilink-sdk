@@ -1,20 +1,23 @@
-package io.github.morningwn.protocol;
+package io.github.morningwn.protocol.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.morningwn.protocol.message.WeixinMessage;
+
+import java.util.List;
 
 /**
- * Response body for getuploadurl.
+ * Response body for getupdates.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record GetUploadUrlResponse(
+public record GetUpdatesResponse(
         @JsonProperty("ret") Integer ret,
         @JsonProperty("errcode") Integer errcode,
         @JsonProperty("errmsg") String errmsg,
-        @JsonProperty("upload_param") String uploadParam,
-        @JsonProperty("thumb_upload_param") String thumbUploadParam,
-        @JsonProperty("upload_full_url") String uploadFullUrl
+        @JsonProperty("msgs") List<WeixinMessage> msgs,
+        @JsonProperty("get_updates_buf") String getUpdatesBuf,
+        @JsonProperty("longpolling_timeout_ms") Integer longpollingTimeoutMs
 ) {
 }

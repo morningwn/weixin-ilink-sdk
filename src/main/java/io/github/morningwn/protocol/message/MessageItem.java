@@ -1,4 +1,4 @@
-package io.github.morningwn.protocol;
+package io.github.morningwn.protocol.message;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -25,4 +25,24 @@ public record MessageItem(
         @JsonProperty("file_item") FileItem fileItem,
         @JsonProperty("video_item") VideoItem videoItem
 ) {
+
+    public static MessageItem ofText(TextItem textItem) {
+        return new MessageItem(MessageItemType.TEXT, null, null, null, null, null, textItem, null, null, null, null);
+    }
+
+    public static MessageItem ofImage(ImageItem imageItem) {
+        return new MessageItem(MessageItemType.IMAGE, null, null, null, null, null, null, imageItem, null, null, null);
+    }
+
+    public static MessageItem ofVoice(VoiceItem voiceItem) {
+        return new MessageItem(MessageItemType.VOICE, null, null, null, null, null, null, null, voiceItem, null, null);
+    }
+
+    public static MessageItem ofFile(FileItem fileItem) {
+        return new MessageItem(MessageItemType.FILE, null, null, null, null, null, null, null, null, fileItem, null);
+    }
+
+    public static MessageItem ofVideo(VideoItem videoItem) {
+        return new MessageItem(MessageItemType.VIDEO, null, null, null, null, null, null, null, null, null, videoItem);
+    }
 }

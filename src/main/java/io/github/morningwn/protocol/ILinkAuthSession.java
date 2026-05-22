@@ -1,4 +1,4 @@
-package io.github.morningwn.client;
+package io.github.morningwn.protocol;
 
 /**
  * Auth session returned by confirmed QR login status.

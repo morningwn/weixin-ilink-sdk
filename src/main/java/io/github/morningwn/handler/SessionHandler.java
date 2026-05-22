@@ -1,8 +1,8 @@
 package io.github.morningwn.handler;
 
-import io.github.morningwn.client.ILinkAuthSession;
-import io.github.morningwn.protocol.QrCodeResponse;
-import io.github.morningwn.protocol.WeixinMessage;
+import io.github.morningwn.protocol.ILinkAuthSession;
+import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.response.QrCodeResponse;
 
 import java.util.List;
 

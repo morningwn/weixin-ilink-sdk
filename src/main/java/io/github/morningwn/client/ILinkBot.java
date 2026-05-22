@@ -6,22 +6,23 @@ import io.github.morningwn.handler.MessageHandler;
 import io.github.morningwn.handler.SessionHandler;
 import io.github.morningwn.protocol.BaseInfo;
 import io.github.morningwn.protocol.CDNMedia;
-import io.github.morningwn.protocol.FileItem;
-import io.github.morningwn.protocol.GetUpdatesResponse;
-import io.github.morningwn.protocol.GetUploadUrlRequest;
-import io.github.morningwn.protocol.GetUploadUrlResponse;
-import io.github.morningwn.protocol.ImageItem;
-import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.QrCodeResponse;
-import io.github.morningwn.protocol.QrCodeStatusResponse;
-import io.github.morningwn.protocol.SendMessageResponse;
-import io.github.morningwn.protocol.VideoItem;
-import io.github.morningwn.protocol.VoiceItem;
-import io.github.morningwn.protocol.WeixinMessage;
+import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.enums.MessageItemType;
-import io.github.morningwn.protocol.enums.MessageState;
-import io.github.morningwn.protocol.enums.MessageType;
 import io.github.morningwn.protocol.enums.QrCodeStatus;
+import io.github.morningwn.protocol.message.FileItem;
+import io.github.morningwn.protocol.message.ImageItem;
+import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.VideoItem;
+import io.github.morningwn.protocol.message.VoiceItem;
+import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.request.GetUploadUrlRequest;
+import io.github.morningwn.protocol.response.CdnUploadResult;
+import io.github.morningwn.protocol.response.DownloadedMedia;
+import io.github.morningwn.protocol.response.GetUpdatesResponse;
+import io.github.morningwn.protocol.response.GetUploadUrlResponse;
+import io.github.morningwn.protocol.response.QrCodeResponse;
+import io.github.morningwn.protocol.response.QrCodeStatusResponse;
+import io.github.morningwn.protocol.response.SendMessageResponse;
 import io.github.morningwn.util.ClientIdGenerator;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -242,30 +243,10 @@ public final class ILinkBot implements AutoCloseable {
     public SendMessageResponse sendImage(String toUserId, String contextToken, byte[] imageBytes) {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.IMAGE, imageBytes);
-            ImageItem imageItem = new ImageItem(
-                    uploadedMedia.media(),
-                    null,
-                    uploadedMedia.aesKeyHex(),
-                    null,
-                    uploadedMedia.encryptedSize(),
-                    null,
-                    null,
-                    null,
-                    null
+            ImageItem imageItem = ImageItem.ofUpload(
+                    uploadedMedia.media(), uploadedMedia.aesKeyHex(), uploadedMedia.encryptedSize()
             );
-            MessageItem item = new MessageItem(
-                    MessageItemType.IMAGE,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    imageItem,
-                    null,
-                    null,
-                    null
-            );
+            MessageItem item = MessageItem.ofImage(imageItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -296,24 +277,9 @@ public final class ILinkBot implements AutoCloseable {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.FILE, fileBytes);
             FileItem fileItem = new FileItem(
-                    uploadedMedia.media(),
-                    fileName,
-                    uploadedMedia.rawMd5(),
-                    Long.toString(uploadedMedia.rawSize())
+                    uploadedMedia.media(), fileName, uploadedMedia.rawMd5(), Long.toString(uploadedMedia.rawSize())
             );
-            MessageItem item = new MessageItem(
-                    MessageItemType.FILE,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    fileItem,
-                    null
-            );
+            MessageItem item = MessageItem.ofFile(fileItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -346,27 +312,8 @@ public final class ILinkBot implements AutoCloseable {
         }
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VOICE, voiceBytes);
-            VoiceItem voiceItem = new VoiceItem(
-                    uploadedMedia.media(),
-                    null,
-                    null,
-                    null,
-                    playtime,
-                    null
-            );
-            MessageItem item = new MessageItem(
-                    MessageItemType.VOICE,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    voiceItem,
-                    null,
-                    null
-            );
+            VoiceItem voiceItem = VoiceItem.ofUpload(uploadedMedia.media(), playtime);
+            MessageItem item = MessageItem.ofVoice(voiceItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -382,29 +329,10 @@ public final class ILinkBot implements AutoCloseable {
     public SendMessageResponse sendVideo(String toUserId, String contextToken, byte[] videoBytes) {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VIDEO, videoBytes);
-            VideoItem videoItem = new VideoItem(
-                    uploadedMedia.media(),
-                    uploadedMedia.encryptedSize(),
-                    null,
-                    uploadedMedia.rawMd5(),
-                    null,
-                    null,
-                    null,
-                    null
+            VideoItem videoItem = VideoItem.ofUpload(
+                    uploadedMedia.media(), uploadedMedia.encryptedSize(), uploadedMedia.rawMd5()
             );
-            MessageItem item = new MessageItem(
-                    MessageItemType.VIDEO,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    videoItem
-            );
+            MessageItem item = MessageItem.ofVideo(videoItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -748,22 +676,7 @@ public final class ILinkBot implements AutoCloseable {
     private WeixinMessage buildMessage(String toUserId, String contextToken, MessageItem item) {
         requireNonBlank(toUserId, "toUserId");
         requireNonBlank(contextToken, "contextToken");
-        return new WeixinMessage(
-                null,
-                null,
-                "",
-                toUserId,
-                ClientIdGenerator.generate(clientIdPrefix),
-                null,
-                null,
-                null,
-                null,
-                null,
-                MessageType.BOT,
-                MessageState.FINISH,
-                List.of(item),
-                contextToken
-        );
+        return WeixinMessage.botFinish(toUserId, ClientIdGenerator.generate(clientIdPrefix), List.of(item), contextToken);
     }
 
     private static byte[] readAllBytes(Path path) {

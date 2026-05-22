@@ -7,27 +7,27 @@ import io.github.morningwn.exception.ILinkProtocolException;
 import io.github.morningwn.exception.SessionExpiredException;
 import io.github.morningwn.protocol.BaseInfo;
 import io.github.morningwn.protocol.CDNMedia;
-import io.github.morningwn.protocol.GetConfigRequest;
-import io.github.morningwn.protocol.GetConfigResponse;
-import io.github.morningwn.protocol.GetUpdatesRequest;
-import io.github.morningwn.protocol.GetUpdatesResponse;
-import io.github.morningwn.protocol.GetUploadUrlRequest;
-import io.github.morningwn.protocol.GetUploadUrlResponse;
-import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.QrCodeResponse;
-import io.github.morningwn.protocol.QrCodeStatusResponse;
-import io.github.morningwn.protocol.SendMessageRequest;
-import io.github.morningwn.protocol.SendMessageResponse;
-import io.github.morningwn.protocol.SendTypingRequest;
-import io.github.morningwn.protocol.SendTypingResponse;
-import io.github.morningwn.protocol.TextItem;
-import io.github.morningwn.protocol.WeixinMessage;
+import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.enums.BusinessCode;
-import io.github.morningwn.protocol.enums.MessageItemType;
-import io.github.morningwn.protocol.enums.MessageState;
-import io.github.morningwn.protocol.enums.MessageType;
 import io.github.morningwn.protocol.enums.QrCodeStatus;
 import io.github.morningwn.protocol.enums.TypingStatus;
+import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.TextItem;
+import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.request.GetConfigRequest;
+import io.github.morningwn.protocol.request.GetUpdatesRequest;
+import io.github.morningwn.protocol.request.GetUploadUrlRequest;
+import io.github.morningwn.protocol.request.SendMessageRequest;
+import io.github.morningwn.protocol.request.SendTypingRequest;
+import io.github.morningwn.protocol.response.CdnUploadResult;
+import io.github.morningwn.protocol.response.DownloadedMedia;
+import io.github.morningwn.protocol.response.GetConfigResponse;
+import io.github.morningwn.protocol.response.GetUpdatesResponse;
+import io.github.morningwn.protocol.response.GetUploadUrlResponse;
+import io.github.morningwn.protocol.response.QrCodeResponse;
+import io.github.morningwn.protocol.response.QrCodeStatusResponse;
+import io.github.morningwn.protocol.response.SendMessageResponse;
+import io.github.morningwn.protocol.response.SendTypingResponse;
 import io.github.morningwn.util.ClientIdGenerator;
 import io.github.morningwn.util.CryptoUtils;
 import io.github.morningwn.util.HexUtils;
@@ -288,32 +288,10 @@ public class ILinkClient implements AutoCloseable {
         for (int i = 0; i < chunks.size(); i++) {
             String chunk = chunks.get(i);
             LOG.debug("Sending text chunk {}/{}, length={}", i + 1, chunks.size(), chunk.length());
-            MessageItem item = new MessageItem(
-                    MessageItemType.TEXT,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    new TextItem(chunk),
-                    null,
-                    null,
-                    null,
-                    null
-            );
-            WeixinMessage msg = new WeixinMessage(
-                    null,
-                    null,
-                    "",
+            MessageItem item = MessageItem.ofText(new TextItem(chunk));
+            WeixinMessage msg = WeixinMessage.botFinish(
                     toUserId,
                     ClientIdGenerator.generate(clientIdPrefix),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    MessageType.BOT,
-                    MessageState.FINISH,
                     List.of(item),
                     contextToken
             );
