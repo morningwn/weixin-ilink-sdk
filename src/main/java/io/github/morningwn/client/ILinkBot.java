@@ -456,13 +456,12 @@ public final class ILinkBot implements AutoCloseable {
                 );
                 retryDelayMs = RETRY_DELAY_MS;
                 longPollingTimeout = deriveNextLongPollingTimeout(longPollingTimeout, response.longpollingTimeoutMs());
-                String suggestedGetUpdatesBuf = normalizeGetUpdatesBuf(response.getUpdatesBuf());
 
                 List<WeixinMessage> messages = response.msgs();
                 boolean fullyProcessed = processMessageBatch(handler, messages);
                 String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
                         currentGetUpdatesBuf,
-                        suggestedGetUpdatesBuf,
+                        response.getUpdatesBuf(),
                         messages,
                         fullyProcessed
                 );
@@ -479,20 +478,16 @@ public final class ILinkBot implements AutoCloseable {
                     sleepBeforeRetry(retryDelayMs);
                     retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
                 }
-            } catch (SessionExpiredException e) {
-                if (shouldSuppressDuringShutdown(e)) {
-                    LOG.debug("Auto pull stopped during shutdown after session expiration");
-                    return;
-                }
-                LOG.warn("Session expired during auto pull and retry also failed", e);
-                sleepBeforeRetry(retryDelayMs);
-                retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
             } catch (RuntimeException e) {
                 if (shouldSuppressDuringShutdown(e)) {
                     LOG.debug("Auto pull stopped during shutdown: {}", e.getMessage());
                     return;
                 }
-                LOG.error("Auto pull failed, retrying in {} ms", retryDelayMs, e);
+                if (e instanceof SessionExpiredException) {
+                    LOG.warn("Session expired during auto pull and retry also failed", e);
+                } else {
+                    LOG.error("Auto pull failed, retrying in {} ms", retryDelayMs, e);
+                }
                 sleepBeforeRetry(retryDelayMs);
                 retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
             }
@@ -887,10 +882,6 @@ public final class ILinkBot implements AutoCloseable {
         }
     }
 
-    private synchronized void forceStopAutoPull() {
-        stopAutoPullInternal(true);
-    }
-
     private synchronized void stopAutoPullInternal(boolean interruptRunningTask) {
         autoPulling.set(false);
         if (pullTask == null) {
@@ -912,7 +903,7 @@ public final class ILinkBot implements AutoCloseable {
             return;
         }
         LOG.info("Auto pull worker did not stop in {} ms, forcing shutdown", SHUTDOWN_WAIT_MILLIS);
-        forceStopAutoPull();
+        stopAutoPullInternal(true);
         pullExecutor.shutdownNow();
         awaitTermination(FORCED_SHUTDOWN_WAIT_MILLIS);
     }
@@ -922,7 +913,7 @@ public final class ILinkBot implements AutoCloseable {
             return pullExecutor.awaitTermination(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            forceStopAutoPull();
+            stopAutoPullInternal(true);
             pullExecutor.shutdownNow();
             return false;
         }

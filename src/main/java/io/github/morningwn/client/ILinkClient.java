@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -215,6 +214,26 @@ public class ILinkClient implements AutoCloseable {
         return getUpdates(session, getUpdatesBuf, config.getLongPollingTimeout());
     }
 
+    private static void assertBusinessSuccess(Integer ret, Integer errcode, String errmsg) {
+        boolean retFail = ret != null && ret != BusinessCode.OK.code();
+        boolean errFail = errcode != null && errcode != BusinessCode.OK.code();
+        if (!retFail && !errFail) {
+            return;
+        }
+        Integer effectiveRet = ret != null ? ret : errcode;
+        Integer effectiveErr = errcode != null ? errcode : ret;
+        String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
+
+        boolean sessionExpired = BusinessCode.SESSION_EXPIRED.code() == effectiveRet
+                || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
+        if (sessionExpired) {
+            LOG.warn("Business request session expired, ret={}, errcode={}", effectiveRet, effectiveErr);
+            throw new SessionExpiredException(message, effectiveRet, effectiveErr, HTTP_STATUS_OK);
+        }
+        LOG.warn("Business request failed, ret={}, errcode={}, errmsg={}", effectiveRet, effectiveErr, message);
+        throw new ILinkProtocolException(message, effectiveRet, effectiveErr, HTTP_STATUS_OK);
+    }
+
     /**
      * Calls getupdates with current cursor and custom timeout for this request.
      *
@@ -231,37 +250,13 @@ public class ILinkClient implements AutoCloseable {
                 null
         );
         GetUpdatesResponse response = postBusiness(
-                session.baseUrl(),
+                session,
                 PATH_GET_UPDATES,
-                session.token(),
                 request,
                 timeout,
                 GetUpdatesResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
-        return response;
-    }
-
-    /**
-     * Sends a prepared message body.
-     *
-     * @param session auth session
-     * @param msg     message payload
-     * @return send response body
-     */
-    public SendMessageResponse sendMessage(ILinkAuthSession session, WeixinMessage msg) {
-        Objects.requireNonNull(session, "session cannot be null");
-        Objects.requireNonNull(msg, "msg cannot be null");
-        SendMessageRequest request = new SendMessageRequest(msg, BaseInfo.of(config.getChannelVersion()));
-        SendMessageResponse response = postBusiness(
-                session.baseUrl(),
-                PATH_SEND_MESSAGE,
-                session.token(),
-                request,
-                config.getRequestTimeout(),
-                SendMessageResponse.class
-        );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
         return response;
     }
 
@@ -328,6 +323,28 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
+     * Sends a prepared message body.
+     *
+     * @param session auth session
+     * @param msg     message payload
+     * @return send response body
+     */
+    public SendMessageResponse sendMessage(ILinkAuthSession session, WeixinMessage msg) {
+        Objects.requireNonNull(session, "session cannot be null");
+        Objects.requireNonNull(msg, "msg cannot be null");
+        SendMessageRequest request = new SendMessageRequest(msg, BaseInfo.of(config.getChannelVersion()));
+        SendMessageResponse response = postBusiness(
+                session,
+                PATH_SEND_MESSAGE,
+                request,
+                config.getRequestTimeout(),
+                SendMessageResponse.class
+        );
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
+        return response;
+    }
+
+    /**
      * Gets typing ticket for one target user.
      *
      * @param session      auth session
@@ -344,14 +361,13 @@ public class ILinkClient implements AutoCloseable {
                 BaseInfo.of(config.getChannelVersion())
         );
         GetConfigResponse response = postBusiness(
-                session.baseUrl(),
+                session,
                 PATH_GET_CONFIG,
-                session.token(),
                 request,
                 config.getRequestTimeout(),
                 GetConfigResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
         return response;
     }
 
@@ -382,36 +398,13 @@ public class ILinkClient implements AutoCloseable {
                 BaseInfo.of(config.getChannelVersion())
         );
         SendTypingResponse response = postBusiness(
-                session.baseUrl(),
+                session,
                 PATH_SEND_TYPING,
-                session.token(),
                 request,
                 config.getRequestTimeout(),
                 SendTypingResponse.class
         );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
-        return response;
-    }
-
-    /**
-     * Calls getuploadurl for media upload parameters.
-     *
-     * @param session auth session
-     * @param request upload-url request body
-     * @return getuploadurl response
-     */
-    public GetUploadUrlResponse getUploadUrl(ILinkAuthSession session, GetUploadUrlRequest request) {
-        Objects.requireNonNull(session, "session cannot be null");
-        Objects.requireNonNull(request, "request cannot be null");
-        GetUploadUrlResponse response = postBusiness(
-                session.baseUrl(),
-                PATH_GET_UPLOAD_URL,
-                session.token(),
-                request,
-                config.getRequestTimeout(),
-                GetUploadUrlResponse.class
-        );
-        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg(), HTTP_STATUS_OK);
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
         return response;
     }
 
@@ -471,21 +464,24 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
-     * 下载并解密媒体，同时返回响应 Content-Type。
+     * Calls getuploadurl for media upload parameters.
      *
-     * <p>图片消息可传入 image_item.aeskey 的十六进制值优先解密；
-     * 其他类型可传 {@code null}，使用 media.aes_key。</p>
-     *
-     * @param media          CDN 媒体引用
-     * @param imageAesKeyHex image_item.aeskey 的十六进制值，可为空
-     * @return 解密后的内容与 Content-Type（可能为空）
+     * @param session auth session
+     * @param request upload-url request body
+     * @return getuploadurl response
      */
-    public DownloadedMedia downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
-        HttpResponse<byte[]> response = downloadEncryptedMediaResponse(media);
-        byte[] key = resolveMediaKey(media, imageAesKeyHex);
-        byte[] plaintext = CryptoUtils.decryptAesEcb(response.body(), key);
-        String contentType = resolveContentType(response.headers());
-        return new DownloadedMedia(plaintext, contentType);
+    public GetUploadUrlResponse getUploadUrl(ILinkAuthSession session, GetUploadUrlRequest request) {
+        Objects.requireNonNull(session, "session cannot be null");
+        Objects.requireNonNull(request, "request cannot be null");
+        GetUploadUrlResponse response = postBusiness(
+                session,
+                PATH_GET_UPLOAD_URL,
+                request,
+                config.getRequestTimeout(),
+                GetUploadUrlResponse.class
+        );
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
+        return response;
     }
 
     private HttpResponse<byte[]> downloadEncryptedMediaResponse(CDNMedia media) {
@@ -521,13 +517,6 @@ public class ILinkClient implements AutoCloseable {
         return CryptoUtils.decodeCompatibleAesKey(media.aesKey());
     }
 
-    private static String resolveContentType(HttpHeaders headers) {
-        if (headers == null) {
-            return null;
-        }
-        return headers.firstValue(HEADER_CONTENT_TYPE).orElse(null);
-    }
-
     /**
      * Encrypts plaintext media content for CDN upload.
      *
@@ -541,32 +530,22 @@ public class ILinkClient implements AutoCloseable {
         return CryptoUtils.encryptAesEcb(plaintext, HexUtils.fromHex(aesKeyHex));
     }
 
-    private <T> T postBusiness(
-            String baseUrl,
-            String path,
-            String token,
-            Object payload,
-            Duration timeout,
-            Class<T> responseType
-    ) {
-        requireNonBlank(token, "token");
-        String json = jsonCodec.toJson(payload);
-        Duration effectiveTimeout = timeout == null ? config.getRequestTimeout() : timeout;
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(buildUrl(baseUrl, path)))
-                .timeout(effectiveTimeout)
-                .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
-                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
-                .header(HEADER_AUTHORIZATION, AUTHORIZATION_BEARER_PREFIX + token)
-                .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
-                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
-
-        withOptionalHeaders(builder);
-
-        LOG.debug("Sending business request, path={}, timeoutMs={}", path, effectiveTimeout.toMillis());
-        HttpResponse<byte[]> response = sendResponse(builder.build());
-        assertHttpSuccess(response.statusCode(), MESSAGE_BUSINESS_REQUEST_FAILED);
-        return jsonCodec.fromJson(new String(response.body(), StandardCharsets.UTF_8), responseType);
+    /**
+     * 下载并解密媒体，同时返回响应 Content-Type。
+     *
+     * <p>图片消息可传入 image_item.aeskey 的十六进制值优先解密；
+     * 其他类型可传 {@code null}，使用 media.aes_key。</p>
+     *
+     * @param media          CDN 媒体引用
+     * @param imageAesKeyHex image_item.aeskey 的十六进制值，可为空
+     * @return 解密后的内容与 Content-Type（可能为空）
+     */
+    public DownloadedMedia downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
+        HttpResponse<byte[]> response = downloadEncryptedMediaResponse(media);
+        byte[] key = resolveMediaKey(media, imageAesKeyHex);
+        byte[] plaintext = CryptoUtils.decryptAesEcb(response.body(), key);
+        String contentType = response.headers().firstValue(HEADER_CONTENT_TYPE).orElse(null);
+        return new DownloadedMedia(plaintext, contentType);
     }
 
     private HttpRequest.Builder withOptionalHeaders(HttpRequest.Builder builder) {
@@ -630,26 +609,31 @@ public class ILinkClient implements AutoCloseable {
         }
     }
 
-    private static void assertBusinessSuccess(Integer ret, Integer errcode, String errmsg, int statusCode) {
-        boolean retFail = ret != null && ret != BusinessCode.OK.code();
-        boolean errFail = errcode != null && errcode != BusinessCode.OK.code();
-        if (!retFail && !errFail) {
-            return;
-        }
-        Integer effectiveRet = ret != null ? ret : errcode;
-        Integer effectiveErr = errcode != null ? errcode : ret;
-        String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
+    private <T> T postBusiness(
+            ILinkAuthSession session,
+            String path,
+            Object payload,
+            Duration timeout,
+            Class<T> responseType
+    ) {
+        requireNonBlank(session.token(), "token");
+        String json = jsonCodec.toJson(payload);
+        Duration effectiveTimeout = timeout == null ? config.getRequestTimeout() : timeout;
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(buildUrl(session.baseUrl(), path)))
+                .timeout(effectiveTimeout)
+                .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
+                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
+                .header(HEADER_AUTHORIZATION, AUTHORIZATION_BEARER_PREFIX + session.token())
+                .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
+                .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
 
-        boolean sessionExpired = BusinessCode.SESSION_EXPIRED.code() == effectiveRet
-                || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
-        if (sessionExpired) {
-            LOG.warn("Business request session expired, ret={}, errcode={}, status={}",
-                    effectiveRet, effectiveErr, statusCode);
-            throw new SessionExpiredException(message, effectiveRet, effectiveErr, statusCode);
-        }
-        LOG.warn("Business request failed, ret={}, errcode={}, status={}, errmsg={}",
-                effectiveRet, effectiveErr, statusCode, message);
-        throw new ILinkProtocolException(message, effectiveRet, effectiveErr, statusCode);
+        withOptionalHeaders(builder);
+
+        LOG.debug("Sending business request, path={}, timeoutMs={}", path, effectiveTimeout.toMillis());
+        HttpResponse<byte[]> response = sendResponse(builder.build());
+        assertHttpSuccess(response.statusCode(), MESSAGE_BUSINESS_REQUEST_FAILED);
+        return jsonCodec.fromJson(new String(response.body(), StandardCharsets.UTF_8), responseType);
     }
 
     /**
