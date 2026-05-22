@@ -137,7 +137,7 @@ public class ILinkClient implements AutoCloseable {
     public QrCodeResponse getBotQrcode() {
         String path = PATH_GET_BOT_QRCODE + QUERY_SEPARATOR + PARAM_BOT_TYPE + QUERY_ASSIGN + config.getBotType();
         LOG.debug("Requesting bot qrcode, botType={}", config.getBotType());
-        HttpRequest request = withLoginHeaders(HttpRequest.newBuilder()
+        HttpRequest request = withOptionalHeaders(HttpRequest.newBuilder()
                 .uri(URI.create(buildUrl(config.getBaseUrl(), path)))
                 .timeout(config.getRequestTimeout())
                 .GET())
@@ -167,7 +167,7 @@ public class ILinkClient implements AutoCloseable {
         requireNonBlank(qrcode, "qrcode");
         String path = PATH_GET_QRCODE_STATUS + QUERY_SEPARATOR + PARAM_QRCODE + QUERY_ASSIGN + urlEncode(qrcode);
         LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
-        HttpRequest request = withLoginHeaders(HttpRequest.newBuilder()
+        HttpRequest request = withOptionalHeaders(HttpRequest.newBuilder()
                 .uri(URI.create(buildUrl(baseUrl, path)))
                 .timeout(config.getRequestTimeout())
                 .GET())
@@ -452,7 +452,7 @@ public class ILinkClient implements AutoCloseable {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
                 .build();
 
-        RawHttpResponse response = sendResponse(request);
+        HttpResponse<byte[]> response = sendResponse(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_CDN_UPLOAD_FAILED);
         String encryptedParam = response.headers().firstValue(HEADER_ENCRYPTED_PARAM).orElse(null);
         LOG.debug("CDN upload succeeded, status={}, hasEncryptedParam={}",
@@ -481,14 +481,14 @@ public class ILinkClient implements AutoCloseable {
      * @return 解密后的内容与 Content-Type（可能为空）
      */
     public DownloadedMedia downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
-        RawHttpResponse response = downloadEncryptedMediaResponse(media);
+        HttpResponse<byte[]> response = downloadEncryptedMediaResponse(media);
         byte[] key = resolveMediaKey(media, imageAesKeyHex);
         byte[] plaintext = CryptoUtils.decryptAesEcb(response.body(), key);
         String contentType = resolveContentType(response.headers());
         return new DownloadedMedia(plaintext, contentType);
     }
 
-    private RawHttpResponse downloadEncryptedMediaResponse(CDNMedia media) {
+    private HttpResponse<byte[]> downloadEncryptedMediaResponse(CDNMedia media) {
         Objects.requireNonNull(media, "media cannot be null");
 
         String target;
@@ -507,7 +507,7 @@ public class ILinkClient implements AutoCloseable {
                 .timeout(config.getRequestTimeout())
                 .GET()
                 .build();
-        RawHttpResponse response = sendResponse(request);
+        HttpResponse<byte[]> response = sendResponse(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_CDN_DOWNLOAD_FAILED);
         LOG.debug("CDN download succeeded, status={}, size={} bytes", response.statusCode(), response.body().length);
         return response;
@@ -564,13 +564,9 @@ public class ILinkClient implements AutoCloseable {
         withOptionalHeaders(builder);
 
         LOG.debug("Sending business request, path={}, timeoutMs={}", path, effectiveTimeout.toMillis());
-        RawHttpResponse response = sendResponse(builder.build());
+        HttpResponse<byte[]> response = sendResponse(builder.build());
         assertHttpSuccess(response.statusCode(), MESSAGE_BUSINESS_REQUEST_FAILED);
-        return jsonCodec.fromJson(response.bodyText(), responseType);
-    }
-
-    private HttpRequest.Builder withLoginHeaders(HttpRequest.Builder builder) {
-        return withOptionalHeaders(builder);
+        return jsonCodec.fromJson(new String(response.body(), StandardCharsets.UTF_8), responseType);
     }
 
     private HttpRequest.Builder withOptionalHeaders(HttpRequest.Builder builder) {
@@ -586,14 +582,14 @@ public class ILinkClient implements AutoCloseable {
         return builder;
     }
 
-    private RawHttpResponse sendResponse(HttpRequest request) {
+    private HttpResponse<byte[]> sendResponse(HttpRequest request) {
         String path = request.uri().getPath();
         LOG.debug("Executing HTTP request: {} {}", request.method(), path);
         try {
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             LOG.debug("HTTP response received: {} {}, status={}",
                     request.method(), path, response.statusCode());
-            return new RawHttpResponse(response.statusCode(), response.headers(), response.body());
+            return response;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOG.info("HTTP request interrupted: {} {}", request.method(), path);
@@ -605,9 +601,9 @@ public class ILinkClient implements AutoCloseable {
     }
 
     private String sendText(HttpRequest request) {
-        RawHttpResponse response = sendResponse(request);
+        HttpResponse<byte[]> response = sendResponse(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_HTTP_REQUEST_FAILED);
-        return response.bodyText();
+        return new String(response.body(), StandardCharsets.UTF_8);
     }
 
     private String buildUrl(String baseUrl, String path) {
@@ -664,10 +660,4 @@ public class ILinkClient implements AutoCloseable {
         LOG.debug("ILinkClient closed");
     }
 
-    private record RawHttpResponse(int statusCode, HttpHeaders headers, byte[] body) {
-
-        private String bodyText() {
-            return new String(body, StandardCharsets.UTF_8);
-        }
-    }
 }
