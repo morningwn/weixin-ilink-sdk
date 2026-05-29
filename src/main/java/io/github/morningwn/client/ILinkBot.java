@@ -9,6 +9,7 @@ import io.github.morningwn.protocol.CDNMedia;
 import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.enums.MessageItemType;
 import io.github.morningwn.protocol.enums.QrCodeStatus;
+import io.github.morningwn.protocol.enums.TypingStatus;
 import io.github.morningwn.protocol.message.FileItem;
 import io.github.morningwn.protocol.message.ImageItem;
 import io.github.morningwn.protocol.message.MessageItem;
@@ -18,11 +19,13 @@ import io.github.morningwn.protocol.message.WeixinMessage;
 import io.github.morningwn.protocol.request.GetUploadUrlRequest;
 import io.github.morningwn.protocol.response.CdnUploadResult;
 import io.github.morningwn.protocol.response.DownloadedMedia;
+import io.github.morningwn.protocol.response.GetConfigResponse;
 import io.github.morningwn.protocol.response.GetUpdatesResponse;
 import io.github.morningwn.protocol.response.GetUploadUrlResponse;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 import io.github.morningwn.protocol.response.QrCodeStatusResponse;
 import io.github.morningwn.protocol.response.SendMessageResponse;
+import io.github.morningwn.protocol.response.SendTypingResponse;
 import io.github.morningwn.util.ClientIdGenerator;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -63,6 +66,7 @@ public final class ILinkBot implements AutoCloseable {
     private static final int SHUTDOWN_CLEANUP_TIMEOUT_MS = 1_000;
     private static final long SHUTDOWN_WAIT_MILLIS = 2_000L;
     private static final long FORCED_SHUTDOWN_WAIT_MILLIS = 1_000L;
+    private static final long TYPING_TICKET_CACHE_TTL_MILLIS = Duration.ofHours(24).toMillis();
 
     private final ILinkClient client;
     private final ILinkClientConfig config;
@@ -70,6 +74,10 @@ public final class ILinkBot implements AutoCloseable {
     private final String clientIdPrefix;
     private final boolean ownsClient;
     private final Object sessionLock = new Object();
+    private final Object typingTicketLock = new Object();
+    private volatile String cachedTypingTicketUserId;
+    private volatile String cachedTypingTicketValue;
+    private volatile long cachedTypingTicketExpiresAtMillis;
 
     private final AtomicBoolean autoPulling = new AtomicBoolean(false);
     private final AtomicBoolean closing = new AtomicBoolean(false);
@@ -230,6 +238,25 @@ public final class ILinkBot implements AutoCloseable {
         requireNonBlank(inbound.fromUserId(), "inbound.fromUserId");
         requireNonBlank(inbound.contextToken(), "inbound.contextToken");
         return sendText(inbound.fromUserId(), inbound.contextToken(), text);
+    }
+
+    /**
+     * Sends typing status to one target user.
+     *
+     * <p>This method automatically fetches a typing ticket for the current conversation.</p>
+     *
+     * @param toUserId     target user id
+     * @param contextToken context token
+     * @param status       typing status, see {@link TypingStatus}
+     * @return sendtyping response
+     */
+    public SendTypingResponse sendTyping(String toUserId, String contextToken, TypingStatus status) {
+        requireNonBlank(toUserId, "toUserId");
+        requireNonBlank(contextToken, "contextToken");
+        Objects.requireNonNull(status, "status cannot be null");
+        return executeWithSessionRetry(currentSession ->
+                client.sendTyping(currentSession, toUserId, resolveTypingTicket(currentSession, toUserId, contextToken), status)
+        );
     }
 
     /**
@@ -643,8 +670,42 @@ public final class ILinkBot implements AutoCloseable {
             }
         }
         if (cleared) {
+            clearCachedTypingTicket();
             clearSession(currentSession);
         }
+    }
+
+    private String resolveTypingTicket(ILinkAuthSession currentSession, String toUserId, String contextToken) {
+        long currentTimeMillis = System.currentTimeMillis();
+        synchronized (typingTicketLock) {
+            if (isCachedTypingTicketUsable(toUserId, currentTimeMillis)) {
+                return cachedTypingTicketValue;
+            }
+
+            GetConfigResponse configResponse = client.getConfig(currentSession, toUserId, contextToken);
+            requireNonBlank(configResponse.typingTicket(), "typingTicket");
+
+            String typingTicket = configResponse.typingTicket();
+            cachedTypingTicketUserId = toUserId;
+            cachedTypingTicketValue = typingTicket;
+            cachedTypingTicketExpiresAtMillis = System.currentTimeMillis() + TYPING_TICKET_CACHE_TTL_MILLIS;
+            return typingTicket;
+        }
+    }
+
+    private void clearCachedTypingTicket() {
+        synchronized (typingTicketLock) {
+            cachedTypingTicketUserId = null;
+            cachedTypingTicketValue = null;
+            cachedTypingTicketExpiresAtMillis = 0L;
+        }
+    }
+
+    private boolean isCachedTypingTicketUsable(String toUserId, long currentTimeMillis) {
+        return Objects.equals(cachedTypingTicketUserId, toUserId)
+                && cachedTypingTicketValue != null
+                && !cachedTypingTicketValue.isBlank()
+                && currentTimeMillis < cachedTypingTicketExpiresAtMillis;
     }
 
     private static void sleepQrPolling() {
