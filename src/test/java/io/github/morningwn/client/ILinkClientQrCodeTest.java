@@ -2,6 +2,7 @@ package io.github.morningwn.client;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.github.morningwn.protocol.CDNMedia;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,7 @@ class ILinkClientQrCodeTest {
         AtomicReference<String> authorizationType = new AtomicReference<>();
         AtomicReference<String> wechatUin = new AtomicReference<>();
         AtomicReference<String> requestBody = new AtomicReference<>();
+        AtomicReference<String> query = new AtomicReference<>();
 
         HttpServer server = startServer(exchange -> {
             method.set(exchange.getRequestMethod());
@@ -32,6 +34,7 @@ class ILinkClientQrCodeTest {
             authorizationType.set(exchange.getRequestHeaders().getFirst("AuthorizationType"));
             wechatUin.set(exchange.getRequestHeaders().getFirst("X-WECHAT-UIN"));
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            query.set(exchange.getRequestURI().getRawQuery());
             writeQrCode(exchange);
         });
         try {
@@ -43,6 +46,7 @@ class ILinkClientQrCodeTest {
             assertEquals("application/json", contentType.get());
             assertEquals("ilink_bot_token", authorizationType.get());
             assertNotNull(wechatUin.get());
+            assertEquals("bot_type=3", query.get());
             assertEquals("{\"local_token_list\":[\"new-token\",\"old-token\"]}", requestBody.get());
             assertEquals("qr-token", response.qrcode());
         } finally {
@@ -114,7 +118,45 @@ class ILinkClientQrCodeTest {
         try {
             new ILinkClient(configFor(server)).getQrcodeStatus("qr token", configFor(server).getBaseUrl(), "123 456+");
 
-            assertEquals("qrcode=qr+token&verify_code=123+456%2B", query.get());
+            assertEquals("qrcode=qr%20token&verify_code=123%20456%2B", query.get());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void cdnFallbackUrlsShouldUrlEncodeQueryParameters() throws Exception {
+        AtomicReference<String> uploadQuery = new AtomicReference<>();
+        AtomicReference<String> downloadQuery = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/c2c/upload", exchange -> {
+            uploadQuery.set(exchange.getRequestURI().getRawQuery());
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().set("x-encrypted-param", "encrypted-response");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.createContext("/c2c/download", exchange -> {
+            downloadQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] response = "payload".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try {
+            ILinkClientConfig config = ILinkClientConfig.builder()
+                    .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                    .cdnBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/c2c/")
+                    .build();
+            ILinkClient client = new ILinkClient(config);
+
+            client.uploadEncryptedMedia(null, "upload value+", "file key+", new byte[]{1});
+            byte[] downloaded = client.downloadEncryptedMedia(new CDNMedia("download value+", null, null, null));
+
+            assertEquals("encrypted_query_param=upload%20value%2B&filekey=file%20key%2B", uploadQuery.get());
+            assertEquals("encrypted_query_param=download%20value%2B", downloadQuery.get());
+            assertEquals("payload", new String(downloaded, StandardCharsets.UTF_8));
         } finally {
             server.stop(0);
         }

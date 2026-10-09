@@ -37,12 +37,12 @@ import io.github.morningwn.util.CryptoUtils;
 import io.github.morningwn.util.HexUtils;
 import io.github.morningwn.util.TextChunker;
 import io.github.morningwn.util.WechatUinGenerator;
+import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -90,10 +90,6 @@ public class ILinkClient implements AutoCloseable {
     private static final String PATH_GET_UPLOAD_URL = "/ilink/bot/getuploadurl";
     private static final String PATH_CDN_UPLOAD = "/upload";
     private static final String PATH_CDN_DOWNLOAD = "/download";
-
-    private static final String QUERY_SEPARATOR = "?";
-    private static final String QUERY_ASSIGN = "=";
-    private static final String QUERY_AND = "&";
 
     private static final int HTTP_STATUS_OK = 200;
     private static final int HTTP_STATUS_SUCCESS_MIN = 200;
@@ -155,11 +151,12 @@ public class ILinkClient implements AutoCloseable {
      * @return qr code payload
      */
     public QrCodeResponse getBotQrcode(List<String> localTokenList) {
-        String path = PATH_GET_BOT_QRCODE + QUERY_SEPARATOR + PARAM_BOT_TYPE + QUERY_ASSIGN + config.getBotType();
         List<String> localTokens = normalizeLocalTokenList(localTokenList);
         LOG.debug("Requesting bot qrcode, botType={}, localTokenCount={}", config.getBotType(), localTokens.size());
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(buildUrl(config.getBaseUrl(), path)))
+                .uri(URI.create(newUriBuilder(config.getBaseUrl(), PATH_GET_BOT_QRCODE)
+                        .addParameter(PARAM_BOT_TYPE, String.valueOf(config.getBotType()))
+                        .toString()))
                 .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
                 .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
                 .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
@@ -203,13 +200,14 @@ public class ILinkClient implements AutoCloseable {
      */
     public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl, String verifyCode) {
         requireNonBlank(qrcode, "qrcode");
-        String path = PATH_GET_QRCODE_STATUS + QUERY_SEPARATOR + PARAM_QRCODE + QUERY_ASSIGN + urlEncode(qrcode);
+        URIBuilder uriBuilder = newUriBuilder(baseUrl, PATH_GET_QRCODE_STATUS)
+                .addParameter(PARAM_QRCODE, qrcode);
         if (verifyCode != null && !verifyCode.isBlank()) {
-            path += QUERY_AND + PARAM_VERIFY_CODE + QUERY_ASSIGN + urlEncode(verifyCode);
+            uriBuilder.addParameter(PARAM_VERIFY_CODE, verifyCode);
         }
         LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
         HttpRequest request = withOptionalHeaders(HttpRequest.newBuilder()
-                .uri(URI.create(buildUrl(baseUrl, path)))
+                .uri(URI.create(uriBuilder.toString()))
                 .timeout(config.getRequestTimeout())
                 .GET())
                 .build();
@@ -467,20 +465,21 @@ public class ILinkClient implements AutoCloseable {
         requireNonBlank(fileKey, "fileKey");
         Objects.requireNonNull(encryptedBytes, "encryptedBytes cannot be null");
 
-        String target;
+        URI target;
         if (uploadFullUrl != null && !uploadFullUrl.isBlank()) {
-            target = uploadFullUrl;
+            target = URI.create(uploadFullUrl);
         } else {
             requireNonBlank(uploadParam, "uploadParam");
-            target = config.getCdnBaseUrl()
-                    + PATH_CDN_UPLOAD + QUERY_SEPARATOR + PARAM_ENCRYPTED_QUERY_PARAM + QUERY_ASSIGN + urlEncode(uploadParam)
-                    + QUERY_AND + PARAM_FILE_KEY + QUERY_ASSIGN + urlEncode(fileKey);
+            target = URI.create(newUriBuilder(config.getCdnBaseUrl(), PATH_CDN_UPLOAD)
+                    .addParameter(PARAM_ENCRYPTED_QUERY_PARAM, uploadParam)
+                    .addParameter(PARAM_FILE_KEY, fileKey)
+                    .toString());
         }
 
         LOG.info("Uploading encrypted media to CDN, payloadSize={} bytes", encryptedBytes.length);
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(target))
+                .uri(target)
                 .timeout(config.getRequestTimeout())
                 .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_OCTET_STREAM)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
@@ -528,19 +527,20 @@ public class ILinkClient implements AutoCloseable {
     private HttpResponse<byte[]> downloadEncryptedMediaResponse(CDNMedia media) {
         Objects.requireNonNull(media, "media cannot be null");
 
-        String target;
+        URI target;
         if (media.fullUrl() != null && !media.fullUrl().isBlank()) {
-            target = media.fullUrl();
+            target = URI.create(media.fullUrl());
         } else {
             requireNonBlank(media.encryptQueryParam(), "media.encryptQueryParam");
-            target = config.getCdnBaseUrl()
-                    + PATH_CDN_DOWNLOAD + QUERY_SEPARATOR + PARAM_ENCRYPTED_QUERY_PARAM + QUERY_ASSIGN + urlEncode(media.encryptQueryParam());
+            target = URI.create(newUriBuilder(config.getCdnBaseUrl(), PATH_CDN_DOWNLOAD)
+                    .addParameter(PARAM_ENCRYPTED_QUERY_PARAM, media.encryptQueryParam())
+                    .toString());
         }
 
         LOG.debug("Downloading encrypted media from CDN");
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(target))
+                .uri(target)
                 .timeout(config.getRequestTimeout())
                 .GET()
                 .build();
@@ -645,8 +645,10 @@ public class ILinkClient implements AutoCloseable {
         return normalizedBase + normalizedPath;
     }
 
-    private static String urlEncode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    private static URIBuilder newUriBuilder(String baseUrl, String path) {
+        requireNonBlank(baseUrl, "baseUrl");
+        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        return new URIBuilder(URI.create(normalizedBaseUrl)).appendPath(path);
     }
 
     private static void requireNonBlank(String value, String field) {
