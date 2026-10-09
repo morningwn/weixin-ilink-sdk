@@ -26,6 +26,10 @@ public enum QrCodeStatus {
      */
     SCANED_BUT_REDIRECT("scaned_but_redirect"),
     /**
+     * Bot is already bound to this local client.
+     */
+    BINDED_REDIRECT("binded_redirect"),
+    /**
      * QR confirmed and login is ready.
      */
     CONFIRMED("confirmed"),

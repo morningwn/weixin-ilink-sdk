@@ -14,6 +14,7 @@ import io.github.morningwn.protocol.enums.TypingStatus;
 import io.github.morningwn.protocol.message.MessageItem;
 import io.github.morningwn.protocol.message.TextItem;
 import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.request.GetBotQrcodeRequest;
 import io.github.morningwn.protocol.request.GetConfigRequest;
 import io.github.morningwn.protocol.request.GetUpdatesRequest;
 import io.github.morningwn.protocol.request.GetUploadUrlRequest;
@@ -134,13 +135,33 @@ public class ILinkClient implements AutoCloseable {
      * @return qr code payload
      */
     public QrCodeResponse getBotQrcode() {
+        return getBotQrcode(List.of());
+    }
+
+    /**
+     * Calls get_bot_qrcode with locally persisted bot tokens.
+     *
+     * <p>The server uses these tokens to recognize a bot already bound to this
+     * client. Tokens must be ordered from most recent to oldest; no more than ten
+     * are sent.</p>
+     *
+     * @param localTokenList locally persisted bot tokens, or {@code null} when none exist
+     * @return qr code payload
+     */
+    public QrCodeResponse getBotQrcode(List<String> localTokenList) {
         String path = PATH_GET_BOT_QRCODE + QUERY_SEPARATOR + PARAM_BOT_TYPE + QUERY_ASSIGN + config.getBotType();
-        LOG.debug("Requesting bot qrcode, botType={}", config.getBotType());
-        HttpRequest request = withOptionalHeaders(HttpRequest.newBuilder()
+        List<String> localTokens = normalizeLocalTokenList(localTokenList);
+        LOG.debug("Requesting bot qrcode, botType={}, localTokenCount={}", config.getBotType(), localTokens.size());
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(buildUrl(config.getBaseUrl(), path)))
-                .timeout(config.getRequestTimeout())
-                .GET())
-                .build();
+                .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
+                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
+                .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        jsonCodec.toJson(new GetBotQrcodeRequest(localTokens)),
+                        StandardCharsets.UTF_8
+                ));
+        HttpRequest request = withOptionalHeaders(builder).build();
         String body = sendText(request);
         return jsonCodec.fromJson(body, QrCodeResponse.class);
     }
@@ -585,6 +606,23 @@ public class ILinkClient implements AutoCloseable {
             LOG.warn("HTTP status indicates failure, status={}, message={}", statusCode, message);
             throw new ILinkProtocolException(message + ", status=" + statusCode, null, null, statusCode);
         }
+    }
+
+    private static List<String> normalizeLocalTokenList(List<String> localTokenList) {
+        if (localTokenList == null || localTokenList.isEmpty()) {
+            return List.of();
+        }
+        List<String> localTokens = new ArrayList<>(Math.min(localTokenList.size(), 10));
+        for (String token : localTokenList) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            localTokens.add(token);
+            if (localTokens.size() == 10) {
+                break;
+            }
+        }
+        return List.copyOf(localTokens);
     }
 
     private <T> T postBusiness(

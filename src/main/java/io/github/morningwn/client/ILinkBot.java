@@ -1,5 +1,6 @@
 package io.github.morningwn.client;
 
+import io.github.morningwn.exception.AlreadyBoundException;
 import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.exception.SessionExpiredException;
 import io.github.morningwn.handler.MessageHandler;
@@ -570,7 +571,7 @@ public final class ILinkBot implements AutoCloseable {
 
     private ILinkAuthSession loginByQrCode() {
         while (true) {
-            QrCodeResponse qrCodeResponse = client.getBotQrcode();
+            QrCodeResponse qrCodeResponse = client.getBotQrcode(loadRecentBotTokens());
             requireNonBlank(qrCodeResponse.qrcode(), "qrcode");
 
             LOG.info("Session missing, waiting for QR confirmation. qrcode_img_content={}",
@@ -588,6 +589,13 @@ public final class ILinkBot implements AutoCloseable {
                 if (status == QrCodeStatus.SCANED_BUT_REDIRECT) {
                     qrBaseUrl = normalizeQrBaseUrl(statusResponse.redirectHost(), qrBaseUrl);
                     continue;
+                }
+                if (status == QrCodeStatus.BINDED_REDIRECT) {
+                    ILinkAuthSession restoredSession = loadSessionFromHandler();
+                    if (restoredSession != null) {
+                        return restoredSession;
+                    }
+                    throw new AlreadyBoundException();
                 }
                 if (status == QrCodeStatus.CONFIRMED) {
                     return client.toAuthSession(statusResponse);
@@ -636,6 +644,19 @@ public final class ILinkBot implements AutoCloseable {
         } catch (Exception e) {
             LOG.warn("Session handler loadSession failed", e);
             return null;
+        }
+    }
+
+    private List<String> loadRecentBotTokens() {
+        if (sessionHandler == null) {
+            return List.of();
+        }
+        try {
+            List<String> tokens = sessionHandler.loadRecentBotTokens();
+            return tokens == null ? List.of() : tokens;
+        } catch (Exception e) {
+            LOG.warn("Session handler loadRecentBotTokens failed", e);
+            return List.of();
         }
     }
 

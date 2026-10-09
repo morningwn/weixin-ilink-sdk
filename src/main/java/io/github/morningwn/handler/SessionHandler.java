@@ -24,6 +24,19 @@ public interface SessionHandler {
     }
 
     /**
+     * Loads locally persisted bot tokens in most-recent-first order.
+     *
+     * <p>The SDK sends at most the first ten values when it must request a QR code.
+     * Return only tokens stored by this client; never return tokens collected from
+     * another client or account store.</p>
+     *
+     * @return recent local bot tokens, or an empty list when none exist
+     */
+    default List<String> loadRecentBotTokens() {
+        return List.of();
+    }
+
+    /**
      * Persists a new confirmed session.
      *
      * @param session confirmed session
