@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.morningwn.protocol.BaseInfo;
-import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.message.OutboundMessage;
 
 /**
  * Request body for sendmessage.
@@ -12,7 +12,7 @@ import io.github.morningwn.protocol.message.WeixinMessage;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SendMessageRequest(
-        @JsonProperty("msg") WeixinMessage msg,
+        @JsonProperty("msg") OutboundMessage msg,
         @JsonProperty("base_info") BaseInfo baseInfo
 ) {
 }

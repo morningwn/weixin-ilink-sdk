@@ -26,13 +26,13 @@
 ## 快速上手
 
 ```java
-import io.github.morningwn.client.ILinkAuthSession;
+import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.client.ILinkBot;
 import io.github.morningwn.client.ILinkClientConfig;
 import io.github.morningwn.handler.SessionHandler;
-import io.github.morningwn.protocol.MessageItem;
-import io.github.morningwn.protocol.ProtocolValues;
-import io.github.morningwn.protocol.QrCodeResponse;
+import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.TextMessageItem;
+import io.github.morningwn.protocol.response.QrCodeResponse;
 
 public final class BotDemo {
 
@@ -70,10 +70,8 @@ public final class BotDemo {
 					return;
 				}
 				for (MessageItem item : message.itemList()) {
-					if (item != null
-							&& item.type() == ProtocolValues.ITEM_TYPE_TEXT
-							&& item.textItem() != null) {
-						bot.replyText(message, "收到: " + item.textItem().text());
+					if (item instanceof TextMessageItem textItem && textItem.textItem() != null) {
+						bot.replyText(message, "收到: " + textItem.textItem().text());
 					}
 				}
 			});
@@ -97,6 +95,10 @@ public final class BotDemo {
 - `sendVoice(toUserId, contextToken, bytes, playtime)`：发送语音
 - `sendVideo(toUserId, contextToken, bytes)`：发送视频
 - `downloadAndDecryptMedia(media, imageAesKeyHex)`：下载并解密媒体，返回 `DownloadedMedia`（含 Content-Type）
+
+## 2.0 消息模型
+
+2.0 为破坏性升级。入站回调使用 `InboundMessage`，发送请求使用 `OutboundMessage`；`MessageItem` 是 sealed interface，需按具体类型消费，例如 `TextMessageItem`、`ImageMessageItem`。未知协议类型会映射为 `UnknownMessageItem`，并保留其原始字段。
 
 ## 可执行示例
 

@@ -1,6 +1,6 @@
 package io.github.morningwn.handler;
 
-import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.message.InboundMessage;
 
 /**
  * Inbound message handler contract.
@@ -13,5 +13,5 @@ public interface MessageHandler {
      *
      * @param message inbound message
      */
-    void handle(WeixinMessage message);
+    void handle(InboundMessage message);
 }

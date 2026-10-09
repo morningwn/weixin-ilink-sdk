@@ -3,7 +3,7 @@ package io.github.morningwn.protocol.response;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.message.InboundMessage;
 
 import java.util.List;
 
@@ -16,7 +16,7 @@ public record GetUpdatesResponse(
         @JsonProperty("ret") Integer ret,
         @JsonProperty("errcode") Integer errcode,
         @JsonProperty("errmsg") String errmsg,
-        @JsonProperty("msgs") List<WeixinMessage> msgs,
+        @JsonProperty("msgs") List<InboundMessage> msgs,
         @JsonProperty("get_updates_buf") String getUpdatesBuf,
         @JsonProperty("longpolling_timeout_ms") Integer longpollingTimeoutMs
 ) {

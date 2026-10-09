@@ -1,7 +1,7 @@
 package io.github.morningwn.handler;
 
 import io.github.morningwn.protocol.ILinkAuthSession;
-import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.message.InboundMessage;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 
 import java.util.List;
@@ -101,7 +101,7 @@ public interface SessionHandler {
     default String confirmGetUpdatesBuf(
             String currentGetUpdatesBuf,
             String suggestedGetUpdatesBuf,
-            List<WeixinMessage> receivedMessages,
+            List<InboundMessage> receivedMessages,
             boolean fullyProcessed
     ) {
         return fullyProcessed ? suggestedGetUpdatesBuf : currentGetUpdatesBuf;

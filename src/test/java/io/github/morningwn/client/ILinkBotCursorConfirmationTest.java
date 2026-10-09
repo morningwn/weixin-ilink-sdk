@@ -5,7 +5,7 @@ import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.enums.BusinessCode;
 import io.github.morningwn.protocol.enums.MessageState;
 import io.github.morningwn.protocol.enums.MessageType;
-import io.github.morningwn.protocol.message.WeixinMessage;
+import io.github.morningwn.protocol.message.InboundMessage;
 import io.github.morningwn.protocol.response.GetUpdatesResponse;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +56,7 @@ class ILinkBotCursorConfirmationTest {
             public String confirmGetUpdatesBuf(
                     String currentGetUpdatesBuf,
                     String suggestedGetUpdatesBuf,
-                    List<WeixinMessage> receivedMessages,
+                    List<InboundMessage> receivedMessages,
                     boolean fullyProcessed
             ) {
                 return currentGetUpdatesBuf;
@@ -109,8 +109,8 @@ class ILinkBotCursorConfirmationTest {
         };
     }
 
-    private static WeixinMessage testMessage(long messageId) {
-        return new WeixinMessage(
+    private static InboundMessage testMessage(long messageId) {
+        return new InboundMessage(
                 null,
                 messageId,
                 "from",

@@ -12,8 +12,9 @@ import io.github.morningwn.protocol.enums.BusinessCode;
 import io.github.morningwn.protocol.enums.QrCodeStatus;
 import io.github.morningwn.protocol.enums.TypingStatus;
 import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.OutboundMessage;
+import io.github.morningwn.protocol.message.TextMessageItem;
 import io.github.morningwn.protocol.message.TextItem;
-import io.github.morningwn.protocol.message.WeixinMessage;
 import io.github.morningwn.protocol.request.GetBotQrcodeRequest;
 import io.github.morningwn.protocol.request.GetConfigRequest;
 import io.github.morningwn.protocol.request.GetUpdatesRequest;
@@ -325,8 +326,8 @@ public class ILinkClient implements AutoCloseable {
         for (int i = 0; i < chunks.size(); i++) {
             String chunk = chunks.get(i);
             LOG.debug("Sending text chunk {}/{}, length={}", i + 1, chunks.size(), chunk.length());
-            MessageItem item = MessageItem.ofText(new TextItem(chunk));
-            WeixinMessage msg = WeixinMessage.botFinish(
+            MessageItem item = new TextMessageItem(new TextItem(chunk));
+            OutboundMessage msg = OutboundMessage.botFinish(
                     toUserId,
                     ClientIdGenerator.generate(clientIdPrefix),
                     List.of(item),
@@ -344,7 +345,7 @@ public class ILinkClient implements AutoCloseable {
      * @param msg     message payload
      * @return send response body
      */
-    public SendMessageResponse sendMessage(ILinkAuthSession session, WeixinMessage msg) {
+    public SendMessageResponse sendMessage(ILinkAuthSession session, OutboundMessage msg) {
         Objects.requireNonNull(session, "session cannot be null");
         Objects.requireNonNull(msg, "msg cannot be null");
         SendMessageRequest request = new SendMessageRequest(

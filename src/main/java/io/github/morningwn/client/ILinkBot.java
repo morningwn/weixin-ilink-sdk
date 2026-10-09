@@ -13,11 +13,16 @@ import io.github.morningwn.protocol.enums.MessageItemType;
 import io.github.morningwn.protocol.enums.QrCodeStatus;
 import io.github.morningwn.protocol.enums.TypingStatus;
 import io.github.morningwn.protocol.message.FileItem;
+import io.github.morningwn.protocol.message.FileMessageItem;
+import io.github.morningwn.protocol.message.ImageMessageItem;
+import io.github.morningwn.protocol.message.InboundMessage;
 import io.github.morningwn.protocol.message.ImageItem;
 import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.OutboundMessage;
+import io.github.morningwn.protocol.message.VideoMessageItem;
 import io.github.morningwn.protocol.message.VideoItem;
+import io.github.morningwn.protocol.message.VoiceMessageItem;
 import io.github.morningwn.protocol.message.VoiceItem;
-import io.github.morningwn.protocol.message.WeixinMessage;
 import io.github.morningwn.protocol.request.GetUploadUrlRequest;
 import io.github.morningwn.protocol.response.CdnUploadResult;
 import io.github.morningwn.protocol.response.DownloadedMedia;
@@ -235,11 +240,40 @@ public final class ILinkBot implements AutoCloseable {
      * @param text    reply content
      * @return send responses in sending order
      */
-    public List<SendMessageResponse> replyText(WeixinMessage inbound, String text) {
+    public List<SendMessageResponse> replyText(InboundMessage inbound, String text) {
         Objects.requireNonNull(inbound, "inbound cannot be null");
         requireNonBlank(inbound.fromUserId(), "inbound.fromUserId");
         requireNonBlank(inbound.contextToken(), "inbound.contextToken");
         return sendText(inbound.fromUserId(), inbound.contextToken(), text);
+    }
+
+    /**
+     * Sends one prepared, type-safe message item.
+     *
+     * @param toUserId target user id
+     * @param contextToken conversation context token
+     * @param item message item to send
+     * @return send response
+     */
+    public SendMessageResponse send(String toUserId, String contextToken, MessageItem item) {
+        requireNonBlank(toUserId, "toUserId");
+        requireNonBlank(contextToken, "contextToken");
+        Objects.requireNonNull(item, "item cannot be null");
+        return executeWithSessionRetry(currentSession ->
+                client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item))
+        );
+    }
+
+    /**
+     * Replies to an inbound message with one prepared, type-safe message item.
+     *
+     * @param inbound inbound message providing the reply target and context
+     * @param item message item to send
+     * @return send response
+     */
+    public SendMessageResponse reply(InboundMessage inbound, MessageItem item) {
+        Objects.requireNonNull(inbound, "inbound cannot be null");
+        return send(inbound.fromUserId(), inbound.contextToken(), item);
     }
 
     /**
@@ -275,7 +309,7 @@ public final class ILinkBot implements AutoCloseable {
             ImageItem imageItem = ImageItem.ofUpload(
                     uploadedMedia.media(), uploadedMedia.aesKeyHex(), uploadedMedia.encryptedSize()
             );
-            MessageItem item = MessageItem.ofImage(imageItem);
+            MessageItem item = new ImageMessageItem(imageItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -308,7 +342,7 @@ public final class ILinkBot implements AutoCloseable {
             FileItem fileItem = new FileItem(
                     uploadedMedia.media(), fileName, uploadedMedia.rawMd5(), Long.toString(uploadedMedia.rawSize())
             );
-            MessageItem item = MessageItem.ofFile(fileItem);
+            MessageItem item = new FileMessageItem(fileItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -342,7 +376,7 @@ public final class ILinkBot implements AutoCloseable {
         return executeWithSessionRetry(currentSession -> {
             UploadedMedia uploadedMedia = uploadMedia(currentSession, toUserId, MessageItemType.VOICE, voiceBytes);
             VoiceItem voiceItem = VoiceItem.ofUpload(uploadedMedia.media(), playtime);
-            MessageItem item = MessageItem.ofVoice(voiceItem);
+            MessageItem item = new VoiceMessageItem(voiceItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -361,7 +395,7 @@ public final class ILinkBot implements AutoCloseable {
             VideoItem videoItem = VideoItem.ofUpload(
                     uploadedMedia.media(), uploadedMedia.encryptedSize(), uploadedMedia.rawMd5()
             );
-            MessageItem item = MessageItem.ofVideo(videoItem);
+            MessageItem item = new VideoMessageItem(videoItem);
             return client.sendMessage(currentSession, buildMessage(toUserId, contextToken, item));
         });
     }
@@ -414,7 +448,7 @@ public final class ILinkBot implements AutoCloseable {
                 retryDelayMs = RETRY_DELAY_MS;
                 longPollingTimeout = deriveNextLongPollingTimeout(longPollingTimeout, response.longpollingTimeoutMs());
 
-                List<WeixinMessage> messages = response.msgs();
+                List<InboundMessage> messages = response.msgs();
                 boolean fullyProcessed = processMessageBatch(handler, messages);
                 String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
                         currentGetUpdatesBuf,
@@ -451,11 +485,11 @@ public final class ILinkBot implements AutoCloseable {
         }
     }
 
-    private boolean processMessageBatch(MessageHandler handler, List<WeixinMessage> messages) {
+    private boolean processMessageBatch(MessageHandler handler, List<InboundMessage> messages) {
         if (messages == null || messages.isEmpty()) {
             return true;
         }
-        for (WeixinMessage message : messages) {
+        for (InboundMessage message : messages) {
             if (!autoPulling.get()) {
                 return false;
             }
@@ -475,7 +509,7 @@ public final class ILinkBot implements AutoCloseable {
     private String resolveConfirmedGetUpdatesBuf(
             String currentGetUpdatesBuf,
             String suggestedGetUpdatesBuf,
-            List<WeixinMessage> receivedMessages,
+            List<InboundMessage> receivedMessages,
             boolean fullyProcessed
     ) {
         String safeCurrentBuf = currentGetUpdatesBuf == null ? "" : currentGetUpdatesBuf;
@@ -800,10 +834,10 @@ public final class ILinkBot implements AutoCloseable {
         }
     }
 
-    private WeixinMessage buildMessage(String toUserId, String contextToken, MessageItem item) {
+    private OutboundMessage buildMessage(String toUserId, String contextToken, MessageItem item) {
         requireNonBlank(toUserId, "toUserId");
         requireNonBlank(contextToken, "contextToken");
-        return WeixinMessage.botFinish(toUserId, ClientIdGenerator.generate(clientIdPrefix), List.of(item), contextToken);
+        return OutboundMessage.botFinish(toUserId, ClientIdGenerator.generate(clientIdPrefix), List.of(item), contextToken);
     }
 
     private static byte[] readAllBytes(Path path) {
@@ -885,7 +919,7 @@ public final class ILinkBot implements AutoCloseable {
                     currentGetUpdatesBuf,
                     Duration.ofMillis(SHUTDOWN_CLEANUP_TIMEOUT_MS)
             );
-            List<WeixinMessage> messages = response.msgs();
+            List<InboundMessage> messages = response.msgs();
             boolean hasPendingMessages = messages != null && !messages.isEmpty();
             String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
                     currentGetUpdatesBuf,

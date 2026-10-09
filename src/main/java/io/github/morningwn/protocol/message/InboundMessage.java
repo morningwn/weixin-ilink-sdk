@@ -8,15 +8,10 @@ import io.github.morningwn.protocol.enums.MessageType;
 
 import java.util.List;
 
-/**
- * Core message structure for inbound and outbound traffic.
- *
- * @param messageType  protocol message type, see {@link MessageType}
- * @param messageState protocol message state, see {@link MessageState}
- */
+/** Message received from the iLink update stream. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record WeixinMessage(
+public record InboundMessage(
         @JsonProperty("seq") Long seq,
         @JsonProperty("message_id") Long messageId,
         @JsonProperty("from_user_id") String fromUserId,
@@ -32,14 +27,4 @@ public record WeixinMessage(
         @JsonProperty("item_list") List<MessageItem> itemList,
         @JsonProperty("context_token") String contextToken
 ) {
-
-    public static WeixinMessage botFinish(
-            String toUserId, String clientId, List<MessageItem> itemList, String contextToken
-    ) {
-        return new WeixinMessage(
-                null, null, "", toUserId, clientId,
-                null, null, null, null, null,
-                MessageType.BOT, MessageState.FINISH, itemList, contextToken
-        );
-    }
 }

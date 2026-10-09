@@ -8,8 +8,8 @@ import io.github.morningwn.client.ILinkBot;
 import io.github.morningwn.client.ILinkClientConfig;
 import io.github.morningwn.handler.SessionHandler;
 import io.github.morningwn.protocol.ILinkAuthSession;
-import io.github.morningwn.protocol.enums.MessageItemType;
 import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.TextMessageItem;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 
 import java.io.BufferedReader;
@@ -61,8 +61,8 @@ public final class QuickStartExampleTest {
                     return;
                 }
                 for (MessageItem item : message.itemList()) {
-                    if (item != null && item.type() == MessageItemType.TEXT && item.textItem() != null) {
-                        String text = item.textItem().text();
+                    if (item instanceof TextMessageItem textItem && textItem.textItem() != null) {
+                        String text = textItem.textItem().text();
                         System.out.println("[inbound] from=" + message.fromUserId() + " text=" + text);
                         latestReplyTarget.set(new ReplyTarget(message.fromUserId(), message.contextToken()));
                         System.out.println("[hint] 输入内容并回车可回复该用户，输入 /quit 退出");

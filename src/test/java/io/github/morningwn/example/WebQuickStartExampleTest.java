@@ -17,8 +17,12 @@ import io.github.morningwn.protocol.ILinkAuthSession;
 import io.github.morningwn.protocol.message.FileItem;
 import io.github.morningwn.protocol.message.ImageItem;
 import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.FileMessageItem;
+import io.github.morningwn.protocol.message.ImageMessageItem;
+import io.github.morningwn.protocol.message.InboundMessage;
+import io.github.morningwn.protocol.message.TextMessageItem;
+import io.github.morningwn.protocol.message.VoiceMessageItem;
 import io.github.morningwn.protocol.message.VoiceItem;
-import io.github.morningwn.protocol.message.WeixinMessage;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -235,7 +239,7 @@ public final class WebQuickStartExampleTest {
     }
 
     private static void onInboundMessage(
-            WeixinMessage message,
+            InboundMessage message,
             AtomicReference<ReplyTarget> latestReplyTarget,
             EventStore eventStore,
             ILinkClient cdnClient
@@ -249,22 +253,19 @@ public final class WebQuickStartExampleTest {
         }
 
         for (MessageItem item : message.itemList()) {
-            if (item == null || item.type() == null) {
-                continue;
-            }
-            switch (item.type()) {
-                case TEXT -> handleInboundText(message, item, eventStore);
-                case IMAGE -> handleInboundImage(message, item.imageItem(), eventStore, cdnClient);
-                case VOICE -> handleInboundVoice(message, item.voiceItem(), eventStore, cdnClient);
-                case FILE -> handleInboundFile(message, item.fileItem(), eventStore, cdnClient);
-                default -> {
-                    // ignore unsupported item types in this demo
-                }
+            if (item instanceof TextMessageItem textItem) {
+                handleInboundText(message, textItem, eventStore);
+            } else if (item instanceof ImageMessageItem imageItem) {
+                handleInboundImage(message, imageItem.imageItem(), eventStore, cdnClient);
+            } else if (item instanceof VoiceMessageItem voiceItem) {
+                handleInboundVoice(message, voiceItem.voiceItem(), eventStore, cdnClient);
+            } else if (item instanceof FileMessageItem fileItem) {
+                handleInboundFile(message, fileItem.fileItem(), eventStore, cdnClient);
             }
         }
     }
 
-    private static void handleInboundText(WeixinMessage message, MessageItem item, EventStore eventStore) {
+    private static void handleInboundText(InboundMessage message, TextMessageItem item, EventStore eventStore) {
         if (item.textItem() == null || item.textItem().text() == null) {
             return;
         }
@@ -273,7 +274,7 @@ public final class WebQuickStartExampleTest {
     }
 
     private static void handleInboundImage(
-            WeixinMessage message,
+            InboundMessage message,
             ImageItem imageItem,
             EventStore eventStore,
             ILinkClient cdnClient
@@ -300,7 +301,7 @@ public final class WebQuickStartExampleTest {
     }
 
     private static void handleInboundVoice(
-            WeixinMessage message,
+            InboundMessage message,
             VoiceItem voiceItem,
             EventStore eventStore,
             ILinkClient cdnClient
@@ -327,7 +328,7 @@ public final class WebQuickStartExampleTest {
     }
 
     private static void handleInboundFile(
-            WeixinMessage message,
+            InboundMessage message,
             FileItem fileItem,
             EventStore eventStore,
             ILinkClient cdnClient
