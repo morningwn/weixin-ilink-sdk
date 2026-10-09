@@ -19,6 +19,7 @@ import io.github.morningwn.protocol.request.GetBotQrcodeRequest;
 import io.github.morningwn.protocol.request.GetConfigRequest;
 import io.github.morningwn.protocol.request.GetUpdatesRequest;
 import io.github.morningwn.protocol.request.GetUploadUrlRequest;
+import io.github.morningwn.protocol.request.NotifyRequest;
 import io.github.morningwn.protocol.request.SendMessageRequest;
 import io.github.morningwn.protocol.request.SendTypingRequest;
 import io.github.morningwn.protocol.response.CdnUploadResult;
@@ -26,6 +27,7 @@ import io.github.morningwn.protocol.response.DownloadedMedia;
 import io.github.morningwn.protocol.response.GetConfigResponse;
 import io.github.morningwn.protocol.response.GetUpdatesResponse;
 import io.github.morningwn.protocol.response.GetUploadUrlResponse;
+import io.github.morningwn.protocol.response.NotifyResponse;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 import io.github.morningwn.protocol.response.QrCodeStatusResponse;
 import io.github.morningwn.protocol.response.SendMessageResponse;
@@ -83,6 +85,8 @@ public class ILinkClient implements AutoCloseable {
     private static final String PATH_SEND_MESSAGE = "/ilink/bot/sendmessage";
     private static final String PATH_GET_CONFIG = "/ilink/bot/getconfig";
     private static final String PATH_SEND_TYPING = "/ilink/bot/sendtyping";
+    private static final String PATH_NOTIFY_START = "/ilink/bot/msg/notifystart";
+    private static final String PATH_NOTIFY_STOP = "/ilink/bot/msg/notifystop";
     private static final String PATH_GET_UPLOAD_URL = "/ilink/bot/getuploadurl";
     private static final String PATH_CDN_UPLOAD = "/upload";
     private static final String PATH_CDN_DOWNLOAD = "/download";
@@ -428,6 +432,24 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
+     * Notifies the backend that this client has started.
+     *
+     * @param session auth session
+     */
+    void notifyStart(ILinkAuthSession session) {
+        notify(session, PATH_NOTIFY_START);
+    }
+
+    /**
+     * Notifies the backend that this client has stopped.
+     *
+     * @param session auth session
+     */
+    void notifyStop(ILinkAuthSession session) {
+        notify(session, PATH_NOTIFY_STOP);
+    }
+
+    /**
      * Uploads encrypted media to CDN.
      *
      * @param uploadFullUrl  full upload URL from getuploadurl, may be empty
@@ -578,6 +600,18 @@ public class ILinkClient implements AutoCloseable {
             builder.header(HEADER_ROUTE_TAG, config.getRouteTag());
         }
         return builder;
+    }
+
+    private void notify(ILinkAuthSession session, String path) {
+        Objects.requireNonNull(session, "session cannot be null");
+        NotifyResponse response = postBusiness(
+                session,
+                path,
+                new NotifyRequest(BaseInfo.of(config.getChannelVersion(), config.getBotAgent())),
+                config.getRequestTimeout(),
+                NotifyResponse.class
+        );
+        assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
     }
 
     private HttpResponse<byte[]> sendResponse(HttpRequest request) {

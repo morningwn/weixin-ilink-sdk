@@ -52,6 +52,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * High-level ready-to-use bot facade.
@@ -438,50 +439,75 @@ public final class ILinkBot implements AutoCloseable {
     private void runAutoPullLoop(MessageHandler handler) {
         long retryDelayMs = RETRY_DELAY_MS;
         Duration longPollingTimeout = normalizeLongPollingTimeout(config.getLongPollingTimeout());
-        while (autoPulling.get()) {
-            try {
-                String currentGetUpdatesBuf = getUpdatesBuf;
-                Duration requestTimeout = longPollingTimeout;
-                GetUpdatesResponse response = executeWithSessionRetry(
-                        currentSession -> client.getUpdates(currentSession, getUpdatesBuf, requestTimeout)
-                );
-                retryDelayMs = RETRY_DELAY_MS;
-                longPollingTimeout = deriveNextLongPollingTimeout(longPollingTimeout, response.longpollingTimeoutMs());
+        AtomicReference<ILinkAuthSession> notifiedSession = new AtomicReference<>();
+        try {
+            while (autoPulling.get()) {
+                try {
+                    if (notifiedSession.get() == null) {
+                        executeWithSessionRetry(currentSession -> {
+                            client.notifyStart(currentSession);
+                            notifiedSession.set(currentSession);
+                            return null;
+                        });
+                    }
+                    String currentGetUpdatesBuf = getUpdatesBuf;
+                    Duration requestTimeout = longPollingTimeout;
+                    GetUpdatesResponse response = executeWithSessionRetry(
+                            currentSession -> client.getUpdates(currentSession, getUpdatesBuf, requestTimeout)
+                    );
+                    retryDelayMs = RETRY_DELAY_MS;
+                    longPollingTimeout = deriveNextLongPollingTimeout(longPollingTimeout, response.longpollingTimeoutMs());
 
-                List<InboundMessage> messages = response.msgs();
-                boolean fullyProcessed = processMessageBatch(handler, messages);
-                String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
-                        currentGetUpdatesBuf,
-                        response.getUpdatesBuf(),
-                        messages,
-                        fullyProcessed
-                );
-                if (!Objects.equals(currentGetUpdatesBuf, confirmedGetUpdatesBuf)) {
-                    getUpdatesBuf = confirmedGetUpdatesBuf;
-                }
+                    List<InboundMessage> messages = response.msgs();
+                    boolean fullyProcessed = processMessageBatch(handler, messages);
+                    String confirmedGetUpdatesBuf = resolveConfirmedGetUpdatesBuf(
+                            currentGetUpdatesBuf,
+                            response.getUpdatesBuf(),
+                            messages,
+                            fullyProcessed
+                    );
+                    if (!Objects.equals(currentGetUpdatesBuf, confirmedGetUpdatesBuf)) {
+                        getUpdatesBuf = confirmedGetUpdatesBuf;
+                    }
 
-                if (!fullyProcessed) {
-                    if (!autoPulling.get()) {
-                        LOG.debug("Auto pull stopping, cursor commit deferred");
+                    if (!fullyProcessed) {
+                        if (!autoPulling.get()) {
+                            LOG.debug("Auto pull stopping, cursor commit deferred");
+                            return;
+                        }
+                        LOG.warn("Message batch was not fully processed, cursor commit is deferred");
+                        sleepBeforeRetry(retryDelayMs);
+                        retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
+                    }
+                } catch (RuntimeException e) {
+                    if (shouldSuppressDuringShutdown(e)) {
+                        LOG.debug("Auto pull stopped during shutdown: {}", e.getMessage());
                         return;
                     }
-                    LOG.warn("Message batch was not fully processed, cursor commit is deferred");
+                    if (e instanceof SessionExpiredException) {
+                        LOG.warn("Session expired during auto pull and retry also failed", e);
+                    } else {
+                        LOG.error("Auto pull failed, retrying in {} ms", retryDelayMs, e);
+                    }
                     sleepBeforeRetry(retryDelayMs);
                     retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
                 }
-            } catch (RuntimeException e) {
-                if (shouldSuppressDuringShutdown(e)) {
-                    LOG.debug("Auto pull stopped during shutdown: {}", e.getMessage());
-                    return;
-                }
-                if (e instanceof SessionExpiredException) {
-                    LOG.warn("Session expired during auto pull and retry also failed", e);
-                } else {
-                    LOG.error("Auto pull failed, retrying in {} ms", retryDelayMs, e);
-                }
-                sleepBeforeRetry(retryDelayMs);
-                retryDelayMs = Math.min(retryDelayMs * 2L, RETRY_DELAY_MAX_MS);
             }
+        } finally {
+            notifyStop(notifiedSession.get());
+        }
+    }
+
+    private void notifyStop(ILinkAuthSession notifiedSession) {
+        if (notifiedSession == null) {
+            return;
+        }
+        try {
+            client.notifyStop(notifiedSession);
+        } catch (SessionExpiredException e) {
+            LOG.debug("Skip notifyStop because session expired");
+        } catch (RuntimeException e) {
+            LOG.warn("Failed to notify backend that client stopped", e);
         }
     }
 
