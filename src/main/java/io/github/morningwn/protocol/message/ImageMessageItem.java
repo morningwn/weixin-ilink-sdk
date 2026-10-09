@@ -10,9 +10,22 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonDeserialize(using = ValueDeserializer.None.class)
-public record ImageMessageItem(@JsonProperty("create_time_ms") Long createTimeMs, @JsonProperty("update_time_ms") Long updateTimeMs,
-        @JsonProperty("is_completed") Boolean isCompleted, @JsonProperty("msg_id") String msgId,
-        @JsonProperty("ref_msg") RefMessage refMsg, @JsonProperty("image_item") ImageItem imageItem) implements MessageItem {
-    @Override @JsonProperty("type") public Integer typeCode() { return MessageItemType.IMAGE.code(); }
-    public ImageMessageItem(ImageItem imageItem) { this(null, null, null, null, null, imageItem); }
+public record ImageMessageItem(
+        @JsonProperty("create_time_ms") Long createTimeMs,
+        @JsonProperty("update_time_ms") Long updateTimeMs,
+        @JsonProperty("is_completed") Boolean isCompleted,
+        @JsonProperty("msg_id") String msgId,
+        @JsonProperty("ref_msg") RefMessage refMsg,
+        @JsonProperty("image_item") ImageItem imageItem
+) implements MessageItem {
+
+    public ImageMessageItem(ImageItem imageItem) {
+        this(null, null, null, null, null, imageItem);
+    }
+
+    @Override
+    @JsonProperty("type")
+    public Integer typeCode() {
+        return MessageItemType.IMAGE.code();
+    }
 }
