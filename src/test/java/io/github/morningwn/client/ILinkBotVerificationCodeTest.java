@@ -97,12 +97,12 @@ class ILinkBotVerificationCodeTest {
         }
 
         @Override
-        public QrCodeResponse getBotQrcode(List<String> localTokenList) {
+        public QrCodeResponse getBotQrCode(List<String> localTokenList) {
             return new QrCodeResponse("qr-token", "https://example.com/qr");
         }
 
         @Override
-        public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl, String verifyCode) {
+        public QrCodeStatusResponse getQrCodeStatus(String qrcode, String baseUrl, String verifyCode) {
             verificationCodes.add(verifyCode);
             QrCodeStatus status = statuses.get(statusIndex++);
             if (status == QrCodeStatus.CONFIRMED) {

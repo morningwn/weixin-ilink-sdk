@@ -59,13 +59,13 @@ class ILinkBotQrLoginTest {
         }
 
         @Override
-        public QrCodeResponse getBotQrcode(List<String> localTokenList) {
+        public QrCodeResponse getBotQrCode(List<String> localTokenList) {
             localTokens = List.copyOf(localTokenList);
             return new QrCodeResponse("qr-token", "https://example.com/qr");
         }
 
         @Override
-        public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl) {
+        public QrCodeStatusResponse getQrCodeStatus(String qrcode, String baseUrl) {
             return new QrCodeStatusResponse(
                     QrCodeStatus.CONFIRMED,
                     null,

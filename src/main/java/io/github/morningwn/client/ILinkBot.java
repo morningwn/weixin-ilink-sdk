@@ -636,7 +636,7 @@ public final class ILinkBot implements AutoCloseable, MessageSender {
 
     private ILinkAuthSession loginByQrCode() {
         while (true) {
-            QrCodeResponse qrCodeResponse = client.getBotQrcode(loadRecentBotTokens());
+            QrCodeResponse qrCodeResponse = client.getBotQrCode(loadRecentBotTokens());
             requireNonBlank(qrCodeResponse.qrcode(), "qrcode");
 
             LOG.info("Session missing, waiting for QR confirmation. qrcode_img_content={}",
@@ -647,7 +647,7 @@ public final class ILinkBot implements AutoCloseable, MessageSender {
             boolean verificationCodeRequested = false;
             String verificationCode = null;
             while (true) {
-                QrCodeStatusResponse statusResponse = client.getQrcodeStatus(
+                QrCodeStatusResponse statusResponse = client.getQrCodeStatus(
                         qrCodeResponse.qrcode(),
                         qrBaseUrl,
                         verificationCode
@@ -812,7 +812,7 @@ public final class ILinkBot implements AutoCloseable, MessageSender {
                 return cachedTypingTicketValue;
             }
 
-            GetConfigResponse configResponse = client.getConfig(currentSession, toUserId, contextToken);
+            GetConfigResponse configResponse = client.getTypingConfig(currentSession, toUserId, contextToken);
             requireNonBlank(configResponse.typingTicket(), "typingTicket");
 
             String typingTicket = configResponse.typingTicket();

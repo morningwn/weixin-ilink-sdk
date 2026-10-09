@@ -126,7 +126,7 @@ class ILinkBotTypingTest {
         }
 
         @Override
-        public GetConfigResponse getConfig(ILinkAuthSession session, String ilinkUserId, String contextToken) {
+        public GetConfigResponse getTypingConfig(ILinkAuthSession session, String ilinkUserId, String contextToken) {
             getConfigCalls++;
             getConfigUserIds.add(ilinkUserId);
             getConfigContextTokens.add(contextToken);

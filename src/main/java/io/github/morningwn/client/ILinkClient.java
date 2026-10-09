@@ -4,6 +4,7 @@ import io.github.morningwn.codec.JacksonJsonCodec;
 import io.github.morningwn.codec.JsonCodec;
 import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.exception.ILinkProtocolException;
+import io.github.morningwn.exception.PartialTextSendException;
 import io.github.morningwn.exception.SessionExpiredException;
 import io.github.morningwn.protocol.BaseInfo;
 import io.github.morningwn.protocol.CDNMedia;
@@ -41,9 +42,12 @@ import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -61,7 +65,7 @@ public class ILinkClient implements AutoCloseable {
 
     private static final String CONTENT_TYPE_JSON = "application/json";
     private static final String CONTENT_TYPE_OCTET_STREAM = "application/octet-stream";
-    private static final String AUTHORIZATION_TYPE = "ilink_bot_token";
+    private static final String AUTHORIZATION_SCHEME_ILINK_BOT_TOKEN = "ilink_bot_token";
     private static final String AUTHORIZATION_BEARER_PREFIX = "Bearer ";
 
     private static final String HEADER_CONTENT_TYPE = "Content-Type";
@@ -74,13 +78,13 @@ public class ILinkClient implements AutoCloseable {
     private static final String HEADER_ENCRYPTED_PARAM = "x-encrypted-param";
 
     private static final String PARAM_BOT_TYPE = "bot_type";
-    private static final String PARAM_QRCODE = "qrcode";
+    private static final String PARAM_QR_CODE = "qrcode";
     private static final String PARAM_VERIFY_CODE = "verify_code";
     private static final String PARAM_ENCRYPTED_QUERY_PARAM = "encrypted_query_param";
     private static final String PARAM_FILE_KEY = "filekey";
 
-    private static final String PATH_GET_BOT_QRCODE = "/ilink/bot/get_bot_qrcode";
-    private static final String PATH_GET_QRCODE_STATUS = "/ilink/bot/get_qrcode_status";
+    private static final String PATH_GET_BOT_QR_CODE = "/ilink/bot/get_bot_qrcode";
+    private static final String PATH_GET_QR_CODE_STATUS = "/ilink/bot/get_qrcode_status";
     private static final String PATH_GET_UPDATES = "/ilink/bot/getupdates";
     private static final String PATH_SEND_MESSAGE = "/ilink/bot/sendmessage";
     private static final String PATH_GET_CONFIG = "/ilink/bot/getconfig";
@@ -132,86 +136,87 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
-     * Calls get_bot_qrcode endpoint.
+     * Calls the get_bot_qrcode endpoint.
      *
-     * @return qr code payload
+     * @return QR code payload
      */
-    public QrCodeResponse getBotQrcode() {
-        return getBotQrcode(List.of());
+    public QrCodeResponse getBotQrCode() {
+        return getBotQrCode(List.of());
     }
 
     /**
-     * Calls get_bot_qrcode with locally persisted bot tokens.
+     * Calls the get_bot_qrcode endpoint with locally persisted bot tokens.
      *
      * <p>The server uses these tokens to recognize a bot already bound to this
      * client. Tokens must be ordered from most recent to oldest; no more than ten
      * are sent.</p>
      *
      * @param localTokenList locally persisted bot tokens, or {@code null} when none exist
-     * @return qr code payload
+     * @return QR code payload
      */
-    public QrCodeResponse getBotQrcode(List<String> localTokenList) {
+    public QrCodeResponse getBotQrCode(List<String> localTokenList) {
         List<String> localTokens = normalizeLocalTokenList(localTokenList);
-        LOG.debug("Requesting bot qrcode, botType={}, localTokenCount={}", config.getBotType(), localTokens.size());
+        LOG.debug("Requesting bot QR code, botType={}, localTokenCount={}", config.getBotType(), localTokens.size());
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(newUriBuilder(config.getBaseUrl(), PATH_GET_BOT_QRCODE)
+                .uri(URI.create(newEndpointUriBuilder(config.getBaseUrl(), PATH_GET_BOT_QR_CODE)
                         .addParameter(PARAM_BOT_TYPE, String.valueOf(config.getBotType()))
                         .toString()))
                 .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
-                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
+                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_SCHEME_ILINK_BOT_TOKEN)
                 .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
+                .timeout(config.getRequestTimeout())
                 .POST(HttpRequest.BodyPublishers.ofString(
                         jsonCodec.toJson(new GetBotQrcodeRequest(localTokens)),
                         StandardCharsets.UTF_8
                 ));
         HttpRequest request = withOptionalHeaders(builder).build();
-        String body = sendText(request);
+        String body = executeTextRequest(request);
         return jsonCodec.fromJson(body, QrCodeResponse.class);
     }
 
     /**
-     * Calls get_qrcode_status endpoint using configured base URL.
+     * Calls the get_qrcode_status endpoint using the configured base URL.
      *
-     * @param qrcode qr polling token
-     * @return qr status response
+     * @param qrCode QR polling token
+     * @return QR status response
      */
-    public QrCodeStatusResponse getQrcodeStatus(String qrcode) {
-        return getQrcodeStatus(qrcode, config.getBaseUrl(), null);
+    public QrCodeStatusResponse getQrCodeStatus(String qrCode) {
+        return getQrCodeStatus(qrCode, config.getBaseUrl(), null);
     }
 
     /**
-     * Calls get_qrcode_status endpoint using custom base URL.
+     * Calls the get_qrcode_status endpoint using a custom base URL.
      *
-     * @param qrcode  qr polling token
+     * @param qrCode  QR polling token
      * @param baseUrl target base URL, used for redirect host handling
      * @return qr status response
      */
-    public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl) {
-        return getQrcodeStatus(qrcode, baseUrl, null);
+    public QrCodeStatusResponse getQrCodeStatus(String qrCode, String baseUrl) {
+        return getQrCodeStatus(qrCode, baseUrl, null);
     }
 
     /**
-     * Calls get_qrcode_status using custom base URL and an optional verification code.
+     * Calls the get_qrcode_status endpoint using a custom base URL and an optional verification code.
      *
-     * @param qrcode QR polling token
+     * @param qrCode QR polling token
      * @param baseUrl target base URL, used for redirect host handling
      * @param verifyCode one-time verification code, or {@code null} when not required
      * @return qr status response
      */
-    public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl, String verifyCode) {
-        requireNonBlank(qrcode, "qrcode");
-        URIBuilder uriBuilder = newUriBuilder(baseUrl, PATH_GET_QRCODE_STATUS)
-                .addParameter(PARAM_QRCODE, qrcode);
+    public QrCodeStatusResponse getQrCodeStatus(String qrCode, String baseUrl, String verifyCode) {
+        requireNonBlank(qrCode, "qrCode");
+        URIBuilder uriBuilder = newEndpointUriBuilder(baseUrl, PATH_GET_QR_CODE_STATUS)
+                .addParameter(PARAM_QR_CODE, qrCode);
         if (verifyCode != null && !verifyCode.isBlank()) {
             uriBuilder.addParameter(PARAM_VERIFY_CODE, verifyCode);
         }
-        LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
+        LOG.debug("Polling QR code status, baseUrl={}", baseUrl);
         HttpRequest request = withOptionalHeaders(HttpRequest.newBuilder()
                 .uri(URI.create(uriBuilder.toString()))
                 .timeout(config.getRequestTimeout())
                 .GET())
                 .build();
-        String body = sendText(request);
+        String body = executeTextRequest(request);
         return jsonCodec.fromJson(body, QrCodeStatusResponse.class);
     }
 
@@ -252,26 +257,6 @@ public class ILinkClient implements AutoCloseable {
      */
     public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf) {
         return getUpdates(session, getUpdatesBuf, config.getLongPollingTimeout());
-    }
-
-    private static void assertBusinessSuccess(Integer ret, Integer errcode, String errmsg) {
-        boolean retFail = ret != null && ret != BusinessCode.OK.code();
-        boolean errFail = errcode != null && errcode != BusinessCode.OK.code();
-        if (!retFail && !errFail) {
-            return;
-        }
-        Integer effectiveRet = ret != null ? ret : errcode;
-        Integer effectiveErr = errcode != null ? errcode : ret;
-        String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
-
-        boolean sessionExpired = BusinessCode.SESSION_EXPIRED.code() == effectiveRet
-                || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
-        if (sessionExpired) {
-            LOG.warn("Business request session expired, ret={}, errcode={}", effectiveRet, effectiveErr);
-            throw new SessionExpiredException(message, effectiveRet, effectiveErr, HTTP_STATUS_OK);
-        }
-        LOG.warn("Business request failed, ret={}, errcode={}, errmsg={}", effectiveRet, effectiveErr, message);
-        throw new ILinkProtocolException(message, effectiveRet, effectiveErr, HTTP_STATUS_OK);
     }
 
     /**
@@ -325,17 +310,32 @@ public class ILinkClient implements AutoCloseable {
         List<String> chunks = TextChunker.split(text);
         LOG.info("Sending text message in {} chunk(s), toUserId={}", chunks.size(), toUserId);
         List<SendMessageResponse> responses = new ArrayList<>(chunks.size());
+        List<SentTextChunk> sentChunks = new ArrayList<>(chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
             String chunk = chunks.get(i);
             LOG.debug("Sending text chunk {}/{}, length={}", i + 1, chunks.size(), chunk.length());
             MessageItem item = new TextMessageItem(new TextItem(chunk));
+            String clientId = ClientIdGenerator.generate(clientIdPrefix);
             OutboundMessage msg = OutboundMessage.botFinish(
                     toUserId,
-                    ClientIdGenerator.generate(clientIdPrefix),
+                    clientId,
                     List.of(item),
                     contextToken
             );
-            responses.add(sendMessage(session, msg));
+            try {
+                SendMessageResponse response = sendMessage(session, msg);
+                responses.add(response);
+                sentChunks.add(new SentTextChunk(i, clientId, response));
+            } catch (ILinkException e) {
+                if (sentChunks.isEmpty()) {
+                    throw e;
+                }
+                throw new PartialTextSendException(
+                        "Text message delivery failed after " + sentChunks.size() + " of " + chunks.size() + " chunk(s)",
+                        sentChunks,
+                        e
+                );
+            }
         }
         return responses;
     }
@@ -366,14 +366,14 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
-     * Gets typing ticket for one target user.
+     * Gets the typing configuration for one target user.
      *
      * @param session      auth session
      * @param ilinkUserId  target user id
      * @param contextToken context token
      * @return getconfig response
      */
-    public GetConfigResponse getConfig(ILinkAuthSession session, String ilinkUserId, String contextToken) {
+    public GetConfigResponse getTypingConfig(ILinkAuthSession session, String ilinkUserId, String contextToken) {
         Objects.requireNonNull(session, "session cannot be null");
         requireNonBlank(ilinkUserId, "ilinkUserId");
         GetConfigRequest request = new GetConfigRequest(
@@ -467,10 +467,10 @@ public class ILinkClient implements AutoCloseable {
 
         URI target;
         if (uploadFullUrl != null && !uploadFullUrl.isBlank()) {
-            target = URI.create(uploadFullUrl);
+            target = requireTrustedCdnUri(uploadFullUrl);
         } else {
             requireNonBlank(uploadParam, "uploadParam");
-            target = URI.create(newUriBuilder(config.getCdnBaseUrl(), PATH_CDN_UPLOAD)
+            target = URI.create(newEndpointUriBuilder(config.getCdnBaseUrl(), PATH_CDN_UPLOAD)
                     .addParameter(PARAM_ENCRYPTED_QUERY_PARAM, uploadParam)
                     .addParameter(PARAM_FILE_KEY, fileKey)
                     .toString());
@@ -485,7 +485,7 @@ public class ILinkClient implements AutoCloseable {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(encryptedBytes))
                 .build();
 
-        HttpResponse<byte[]> response = sendResponse(request);
+        ResponseData response = executeByteArrayRequest(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_CDN_UPLOAD_FAILED);
         String encryptedParam = response.headers().firstValue(HEADER_ENCRYPTED_PARAM).orElse(null);
         LOG.debug("CDN upload succeeded, status={}, hasEncryptedParam={}",
@@ -524,15 +524,15 @@ public class ILinkClient implements AutoCloseable {
         return response;
     }
 
-    private HttpResponse<byte[]> downloadEncryptedMediaResponse(CDNMedia media) {
+    private ResponseData downloadEncryptedMediaResponse(CDNMedia media) {
         Objects.requireNonNull(media, "media cannot be null");
 
         URI target;
         if (media.fullUrl() != null && !media.fullUrl().isBlank()) {
-            target = URI.create(media.fullUrl());
+            target = requireTrustedCdnUri(media.fullUrl());
         } else {
             requireNonBlank(media.encryptQueryParam(), "media.encryptQueryParam");
-            target = URI.create(newUriBuilder(config.getCdnBaseUrl(), PATH_CDN_DOWNLOAD)
+            target = URI.create(newEndpointUriBuilder(config.getCdnBaseUrl(), PATH_CDN_DOWNLOAD)
                     .addParameter(PARAM_ENCRYPTED_QUERY_PARAM, media.encryptQueryParam())
                     .toString());
         }
@@ -544,7 +544,7 @@ public class ILinkClient implements AutoCloseable {
                 .timeout(config.getRequestTimeout())
                 .GET()
                 .build();
-        HttpResponse<byte[]> response = sendResponse(request);
+        ResponseData response = executeByteArrayRequest(request, config.getMaxMediaDownloadBytes());
         assertHttpSuccess(response.statusCode(), MESSAGE_CDN_DOWNLOAD_FAILED);
         LOG.debug("CDN download succeeded, status={}, size={} bytes", response.statusCode(), response.body().length);
         return response;
@@ -572,17 +572,18 @@ public class ILinkClient implements AutoCloseable {
     }
 
     /**
-     * 下载并解密媒体，同时返回响应 Content-Type。
+     * Downloads and decrypts media, preserving the response Content-Type.
      *
-     * <p>图片消息可传入 image_item.aeskey 的十六进制值优先解密；
-     * 其他类型可传 {@code null}，使用 media.aes_key。</p>
+     * <p>For image messages, pass the hexadecimal value of image_item.aeskey to
+     * decrypt with that key. For other media types, pass {@code null} to use
+     * media.aes_key.</p>
      *
-     * @param media          CDN 媒体引用
-     * @param imageAesKeyHex image_item.aeskey 的十六进制值，可为空
-     * @return 解密后的内容与 Content-Type（可能为空）
+     * @param media          CDN media reference
+     * @param imageAesKeyHex hexadecimal image_item.aeskey, or {@code null}
+     * @return decrypted content and optional Content-Type
      */
     public DownloadedMedia downloadAndDecryptMedia(CDNMedia media, String imageAesKeyHex) {
-        HttpResponse<byte[]> response = downloadEncryptedMediaResponse(media);
+        ResponseData response = downloadEncryptedMediaResponse(media);
         byte[] key = resolveMediaKey(media, imageAesKeyHex);
         byte[] plaintext = CryptoUtils.decryptAesEcb(response.body(), key);
         String contentType = response.headers().firstValue(HEADER_CONTENT_TYPE).orElse(null);
@@ -614,14 +615,28 @@ public class ILinkClient implements AutoCloseable {
         assertBusinessSuccess(response.ret(), response.errcode(), response.errmsg());
     }
 
-    private HttpResponse<byte[]> sendResponse(HttpRequest request) {
+    private ResponseData executeByteArrayRequest(HttpRequest request) {
+        return executeByteArrayRequest(request, Long.MAX_VALUE);
+    }
+
+    private ResponseData executeByteArrayRequest(HttpRequest request, long maxResponseBytes) {
         String path = request.uri().getPath();
         LOG.debug("Executing HTTP request: {} {}", request.method(), path);
         try {
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1);
+            if (contentLength > maxResponseBytes) {
+                try (InputStream body = response.body()) {
+                    throw new ILinkException("HTTP response exceeds maximum size of " + maxResponseBytes + " bytes");
+                }
+            }
+            byte[] responseBody;
+            try (InputStream body = response.body()) {
+                responseBody = readResponseBody(body, maxResponseBytes);
+            }
             LOG.debug("HTTP response received: {} {}, status={}",
                     request.method(), path, response.statusCode());
-            return response;
+            return new ResponseData(response.statusCode(), response.headers(), responseBody);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOG.info("HTTP request interrupted: {} {}", request.method(), path);
@@ -632,20 +647,48 @@ public class ILinkClient implements AutoCloseable {
         }
     }
 
-    private String sendText(HttpRequest request) {
-        HttpResponse<byte[]> response = sendResponse(request);
+    private static byte[] readResponseBody(InputStream body, long maxResponseBytes) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        long totalBytes = 0;
+        int bytesRead;
+        while ((bytesRead = body.read(buffer)) != -1) {
+            if (totalBytes > maxResponseBytes - bytesRead) {
+                throw new ILinkException("HTTP response exceeds maximum size of " + maxResponseBytes + " bytes");
+            }
+            output.write(buffer, 0, bytesRead);
+            totalBytes += bytesRead;
+        }
+        return output.toByteArray();
+    }
+
+    private URI requireTrustedCdnUri(String fullUrl) {
+        URI target = URI.create(fullUrl);
+        URI configuredCdn = URI.create(config.getCdnBaseUrl());
+        if (!"https".equalsIgnoreCase(target.getScheme())
+                || target.getUserInfo() != null
+                || target.getHost() == null
+                || configuredCdn.getHost() == null
+                || !target.getHost().equalsIgnoreCase(configuredCdn.getHost())) {
+            throw new ILinkException("full CDN URL must use HTTPS and match the configured CDN host");
+        }
+        return target;
+    }
+
+    private String executeTextRequest(HttpRequest request) {
+        ResponseData response = executeByteArrayRequest(request);
         assertHttpSuccess(response.statusCode(), MESSAGE_HTTP_REQUEST_FAILED);
         return new String(response.body(), StandardCharsets.UTF_8);
     }
 
-    private String buildUrl(String baseUrl, String path) {
+    private static URI buildEndpointUri(String baseUrl, String path) {
         requireNonBlank(baseUrl, "baseUrl");
         String normalizedBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String normalizedPath = path.startsWith("/") ? path : "/" + path;
-        return normalizedBase + normalizedPath;
+        return URI.create(normalizedBase + normalizedPath);
     }
 
-    private static URIBuilder newUriBuilder(String baseUrl, String path) {
+    private static URIBuilder newEndpointUriBuilder(String baseUrl, String path) {
         requireNonBlank(baseUrl, "baseUrl");
         String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         return new URIBuilder(URI.create(normalizedBaseUrl)).appendPath(path);
@@ -692,10 +735,10 @@ public class ILinkClient implements AutoCloseable {
         String json = jsonCodec.toJson(payload);
         Duration effectiveTimeout = timeout == null ? config.getRequestTimeout() : timeout;
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(buildUrl(session.baseUrl(), path)))
+                .uri(buildEndpointUri(session.baseUrl(), path))
                 .timeout(effectiveTimeout)
                 .header(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
-                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_TYPE)
+                .header(HEADER_AUTHORIZATION_TYPE, AUTHORIZATION_SCHEME_ILINK_BOT_TOKEN)
                 .header(HEADER_AUTHORIZATION, AUTHORIZATION_BEARER_PREFIX + session.token())
                 .header(HEADER_WECHAT_UIN, WechatUinGenerator.randomWechatUin())
                 .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
@@ -703,9 +746,40 @@ public class ILinkClient implements AutoCloseable {
         withOptionalHeaders(builder);
 
         LOG.debug("Sending business request, path={}, timeoutMs={}", path, effectiveTimeout.toMillis());
-        HttpResponse<byte[]> response = sendResponse(builder.build());
+        ResponseData response = executeByteArrayRequest(builder.build());
         assertHttpSuccess(response.statusCode(), MESSAGE_BUSINESS_REQUEST_FAILED);
         return jsonCodec.fromJson(new String(response.body(), StandardCharsets.UTF_8), responseType);
+    }
+
+    private static void assertBusinessSuccess(Integer ret, Integer errcode, String errmsg) {
+        if (ret == null && errcode == null) {
+            throw new ILinkProtocolException(
+                    "Business response does not contain ret or errcode",
+                    null,
+                    null,
+                    HTTP_STATUS_OK
+            );
+        }
+        boolean retFail = ret != null && ret != BusinessCode.OK.code();
+        boolean errFail = errcode != null && errcode != BusinessCode.OK.code();
+        if (!retFail && !errFail) {
+            return;
+        }
+        Integer effectiveRet = ret != null ? ret : errcode;
+        Integer effectiveErr = errcode != null ? errcode : ret;
+        String message = errmsg == null || errmsg.isBlank() ? MESSAGE_BUSINESS_REQUEST_FAILED : errmsg;
+
+        boolean sessionExpired = BusinessCode.SESSION_EXPIRED.code() == effectiveRet
+                || BusinessCode.SESSION_EXPIRED.code() == effectiveErr;
+        if (sessionExpired) {
+            LOG.warn("Business request session expired, ret={}, errcode={}", effectiveRet, effectiveErr);
+            throw new SessionExpiredException(message, effectiveRet, effectiveErr, HTTP_STATUS_OK);
+        }
+        LOG.warn("Business request failed, ret={}, errcode={}, errmsg={}", effectiveRet, effectiveErr, message);
+        throw new ILinkProtocolException(message, effectiveRet, effectiveErr, HTTP_STATUS_OK);
+    }
+
+    private record ResponseData(int statusCode, HttpHeaders headers, byte[] body) {
     }
 
     /**

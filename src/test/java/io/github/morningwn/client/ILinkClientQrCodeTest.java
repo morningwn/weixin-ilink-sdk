@@ -2,6 +2,7 @@ package io.github.morningwn.client;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.protocol.CDNMedia;
 import io.github.morningwn.protocol.response.QrCodeResponse;
 import org.junit.jupiter.api.Test;
@@ -16,11 +17,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ILinkClientQrCodeTest {
 
     @Test
-    void getBotQrcodeShouldPostRecentLocalTokens() throws Exception {
+    void getBotQrCodeShouldPostRecentLocalTokens() throws Exception {
         AtomicReference<String> method = new AtomicReference<>();
         AtomicReference<String> contentType = new AtomicReference<>();
         AtomicReference<String> authorizationType = new AtomicReference<>();
@@ -40,7 +42,7 @@ class ILinkClientQrCodeTest {
         try {
             ILinkClient client = new ILinkClient(configFor(server));
 
-            QrCodeResponse response = client.getBotQrcode(List.of("new-token", "old-token"));
+            QrCodeResponse response = client.getBotQrCode(List.of("new-token", "old-token"));
 
             assertEquals("POST", method.get());
             assertEquals("application/json", contentType.get());
@@ -55,7 +57,7 @@ class ILinkClientQrCodeTest {
     }
 
     @Test
-    void getBotQrcodeShouldLimitAndNormalizeLocalTokens() throws Exception {
+    void getBotQrCodeShouldLimitAndNormalizeLocalTokens() throws Exception {
         AtomicReference<String> requestBody = new AtomicReference<>();
         HttpServer server = startServer(exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -68,7 +70,7 @@ class ILinkClientQrCodeTest {
                 tokens.add("token-" + index);
             }
 
-            new ILinkClient(configFor(server)).getBotQrcode(tokens);
+            new ILinkClient(configFor(server)).getBotQrCode(tokens);
 
             assertEquals(
                     "{\"local_token_list\":[\"token-0\",\"token-1\",\"token-2\",\"token-3\",\"token-4\","
@@ -81,7 +83,7 @@ class ILinkClientQrCodeTest {
     }
 
     @Test
-    void getBotQrcodeShouldNotUseDefaultRequestTimeout() throws Exception {
+    void getBotQrCodeShouldUseDefaultRequestTimeout() throws Exception {
         HttpServer server = startServer(exchange -> {
             try {
                 Thread.sleep(100);
@@ -97,16 +99,14 @@ class ILinkClientQrCodeTest {
                     .requestTimeout(Duration.ofMillis(1))
                     .build();
 
-            QrCodeResponse response = new ILinkClient(config).getBotQrcode();
-
-            assertEquals("qr-token", response.qrcode());
+            assertThrows(ILinkException.class, () -> new ILinkClient(config).getBotQrCode());
         } finally {
             server.stop(0);
         }
     }
 
     @Test
-    void getQrcodeStatusShouldUrlEncodeVerificationCode() throws Exception {
+    void getQrCodeStatusShouldUrlEncodeVerificationCode() throws Exception {
         AtomicReference<String> query = new AtomicReference<>();
         HttpServer server = startStatusServer(exchange -> {
             query.set(exchange.getRequestURI().getRawQuery());
@@ -116,7 +116,7 @@ class ILinkClientQrCodeTest {
             exchange.close();
         });
         try {
-            new ILinkClient(configFor(server)).getQrcodeStatus("qr token", configFor(server).getBaseUrl(), "123 456+");
+            new ILinkClient(configFor(server)).getQrCodeStatus("qr token", configFor(server).getBaseUrl(), "123 456+");
 
             assertEquals("qrcode=qr%20token&verify_code=123%20456%2B", query.get());
         } finally {

@@ -20,6 +20,7 @@ public final class ILinkClientConfig {
     private final Duration connectTimeout;
     private final Duration requestTimeout;
     private final Duration longPollingTimeout;
+    private final long maxMediaDownloadBytes;
 
     private ILinkClientConfig(Builder builder) {
         this.baseUrl = builder.baseUrl;
@@ -33,6 +34,7 @@ public final class ILinkClientConfig {
         this.connectTimeout = builder.connectTimeout;
         this.requestTimeout = builder.requestTimeout;
         this.longPollingTimeout = builder.longPollingTimeout;
+        this.maxMediaDownloadBytes = builder.maxMediaDownloadBytes;
     }
 
     /**
@@ -120,6 +122,13 @@ public final class ILinkClientConfig {
     }
 
     /**
+     * @return maximum accepted CDN media response size in bytes
+     */
+    public long getMaxMediaDownloadBytes() {
+        return maxMediaDownloadBytes;
+    }
+
+    /**
      * Builder for {@link ILinkClientConfig}.
      */
     public static final class Builder {
@@ -135,6 +144,7 @@ public final class ILinkClientConfig {
         private Duration connectTimeout = Duration.ofSeconds(10);
         private Duration requestTimeout = Duration.ofSeconds(40);
         private Duration longPollingTimeout = Duration.ofSeconds(40);
+        private long maxMediaDownloadBytes = 100L * 1024 * 1024;
 
         private Builder() {
         }
@@ -244,6 +254,18 @@ public final class ILinkClientConfig {
          */
         public Builder longPollingTimeout(Duration longPollingTimeout) {
             this.longPollingTimeout = longPollingTimeout;
+            return this;
+        }
+
+        /**
+         * @param maxMediaDownloadBytes maximum accepted CDN media response size in bytes
+         * @return builder
+         */
+        public Builder maxMediaDownloadBytes(long maxMediaDownloadBytes) {
+            if (maxMediaDownloadBytes <= 0) {
+                throw new IllegalArgumentException("maxMediaDownloadBytes must be positive");
+            }
+            this.maxMediaDownloadBytes = maxMediaDownloadBytes;
             return this;
         }
 
