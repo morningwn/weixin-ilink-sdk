@@ -1,6 +1,13 @@
-package io.github.morningwn.protocol.message;
+package io.github.morningwn.codec;
 
 import io.github.morningwn.protocol.enums.MessageItemType;
+import io.github.morningwn.protocol.message.FileMessageItem;
+import io.github.morningwn.protocol.message.ImageMessageItem;
+import io.github.morningwn.protocol.message.MessageItem;
+import io.github.morningwn.protocol.message.TextMessageItem;
+import io.github.morningwn.protocol.message.UnknownMessageItem;
+import io.github.morningwn.protocol.message.VideoMessageItem;
+import io.github.morningwn.protocol.message.VoiceMessageItem;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonParser;
 import tools.jackson.databind.DeserializationContext;
@@ -8,9 +15,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.deser.std.StdDeserializer;
 
 /** Resolves a concrete message item from the protocol type code. */
-final class MessageItemDeserializer extends StdDeserializer<MessageItem> {
+public final class MessageItemDeserializer extends StdDeserializer<MessageItem> {
 
-    MessageItemDeserializer() {
+    public MessageItemDeserializer() {
         super(MessageItem.class);
     }
 

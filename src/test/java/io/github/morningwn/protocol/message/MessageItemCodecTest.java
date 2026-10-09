@@ -22,6 +22,13 @@ class MessageItemCodecTest {
     }
 
     @Test
+    void shouldDeserializeConcreteTypeWithoutMessageItemDeserializer() {
+        TextMessageItem item = codec.fromJson("{\"text_item\":{\"text\":\"hello\"}}", TextMessageItem.class);
+
+        assertEquals("hello", item.textItem().text());
+    }
+
+    @Test
     void shouldPreserveUnknownTypeAndPayload() {
         MessageItem item = codec.fromJson("{\"type\":99,\"future_item\":{\"value\":1}}", MessageItem.class);
 
