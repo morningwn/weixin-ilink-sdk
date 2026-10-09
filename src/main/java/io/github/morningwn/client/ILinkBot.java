@@ -529,7 +529,7 @@ public final class ILinkBot implements AutoCloseable {
                 null,
                 Boolean.TRUE,
                 aesKeyHex,
-                BaseInfo.of(config.getChannelVersion())
+                BaseInfo.of(config.getChannelVersion(), config.getBotAgent())
         );
         GetUploadUrlResponse response = client.getUploadUrl(currentSession, request);
 

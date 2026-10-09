@@ -12,6 +12,7 @@ public final class ILinkClientConfig {
     private final String baseUrl;
     private final String cdnBaseUrl;
     private final String channelVersion;
+    private final String botAgent;
     private final String appId;
     private final String appClientVersion;
     private final String routeTag;
@@ -24,6 +25,7 @@ public final class ILinkClientConfig {
         this.baseUrl = builder.baseUrl;
         this.cdnBaseUrl = builder.cdnBaseUrl;
         this.channelVersion = builder.channelVersion;
+        this.botAgent = builder.botAgent;
         this.appId = builder.appId;
         this.appClientVersion = builder.appClientVersion;
         this.routeTag = builder.routeTag;
@@ -59,6 +61,13 @@ public final class ILinkClientConfig {
      */
     public String getChannelVersion() {
         return channelVersion;
+    }
+
+    /**
+     * @return bot agent identifier for base_info
+     */
+    public String getBotAgent() {
+        return botAgent;
     }
 
     /**
@@ -118,6 +127,7 @@ public final class ILinkClientConfig {
         private String baseUrl = "https://ilinkai.weixin.qq.com";
         private String cdnBaseUrl = "https://novac2c.cdn.weixin.qq.com/c2c";
         private String channelVersion = "1.0.0";
+        private String botAgent = "weixin-ilink-sdk/1.0.1";
         private String appId = "bot";
         private String appClientVersion = VersionEncoder.encode("2.1.6");
         private String routeTag;
@@ -153,6 +163,15 @@ public final class ILinkClientConfig {
          */
         public Builder channelVersion(String channelVersion) {
             this.channelVersion = channelVersion;
+            return this;
+        }
+
+        /**
+         * @param botAgent bot agent identifier in base_info
+         * @return builder
+         */
+        public Builder botAgent(String botAgent) {
+            this.botAgent = botAgent;
             return this;
         }
 

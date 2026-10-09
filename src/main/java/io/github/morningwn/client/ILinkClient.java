@@ -283,7 +283,7 @@ public class ILinkClient implements AutoCloseable {
         Objects.requireNonNull(session, "session cannot be null");
         GetUpdatesRequest request = new GetUpdatesRequest(
                 getUpdatesBuf == null ? "" : getUpdatesBuf,
-                BaseInfo.of(config.getChannelVersion()),
+                BaseInfo.of(config.getChannelVersion(), config.getBotAgent()),
                 null
         );
         GetUpdatesResponse response = postBusiness(
@@ -347,7 +347,10 @@ public class ILinkClient implements AutoCloseable {
     public SendMessageResponse sendMessage(ILinkAuthSession session, WeixinMessage msg) {
         Objects.requireNonNull(session, "session cannot be null");
         Objects.requireNonNull(msg, "msg cannot be null");
-        SendMessageRequest request = new SendMessageRequest(msg, BaseInfo.of(config.getChannelVersion()));
+        SendMessageRequest request = new SendMessageRequest(
+                msg,
+                BaseInfo.of(config.getChannelVersion(), config.getBotAgent())
+        );
         SendMessageResponse response = postBusiness(
                 session,
                 PATH_SEND_MESSAGE,
@@ -373,7 +376,7 @@ public class ILinkClient implements AutoCloseable {
         GetConfigRequest request = new GetConfigRequest(
                 ilinkUserId,
                 contextToken,
-                BaseInfo.of(config.getChannelVersion())
+                BaseInfo.of(config.getChannelVersion(), config.getBotAgent())
         );
         GetConfigResponse response = postBusiness(
                 session,
@@ -410,7 +413,7 @@ public class ILinkClient implements AutoCloseable {
                 ilinkUserId,
                 typingTicket,
                 status,
-                BaseInfo.of(config.getChannelVersion())
+                BaseInfo.of(config.getChannelVersion(), config.getBotAgent())
         );
         SendTypingResponse response = postBusiness(
                 session,
