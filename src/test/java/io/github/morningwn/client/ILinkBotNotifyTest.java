@@ -34,7 +34,7 @@ class ILinkBotNotifyTest {
             }
         });
 
-        bot.startAutoPull(message -> {
+        bot.startAutoPull((message, sender) -> {
         });
 
         assertTrue(client.getUpdatesEntered.await(1, TimeUnit.SECONDS), "auto pull should enter getUpdates");

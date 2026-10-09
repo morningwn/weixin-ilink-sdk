@@ -65,13 +65,17 @@ public final class BotDemo {
 		};
 
 		try (ILinkBot bot = new ILinkBot(config, sessionHandler)) {
-			bot.startAutoPull(message -> {
+			bot.startAutoPull((message, sender) -> {
 				if (message.itemList() == null) {
 					return;
 				}
 				for (MessageItem item : message.itemList()) {
 					if (item instanceof TextMessageItem textItem && textItem.textItem() != null) {
-						bot.replyText(message, "收到: " + textItem.textItem().text());
+						sender.sendText(
+								message.fromUserId(),
+								message.contextToken(),
+								"收到: " + textItem.textItem().text()
+						);
 					}
 				}
 			});

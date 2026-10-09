@@ -1,5 +1,6 @@
 package io.github.morningwn.client;
 
+import io.github.morningwn.api.MessageSender;
 import io.github.morningwn.exception.AlreadyBoundException;
 import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.exception.SessionExpiredException;
@@ -60,7 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>This class hides low-level details, including long polling loop management,
  * text chunking for long messages and media upload flow.</p>
  */
-public final class ILinkBot implements AutoCloseable {
+public final class ILinkBot implements AutoCloseable, MessageSender {
 
     private static final Logger LOG = LoggerFactory.getLogger(ILinkBot.class);
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -228,6 +229,7 @@ public final class ILinkBot implements AutoCloseable {
      * @param text         text content
      * @return send responses in sending order
      */
+    @Override
     public List<SendMessageResponse> sendText(String toUserId, String contextToken, String text) {
         return executeWithSessionRetry(
                 currentSession -> client.sendText(currentSession, toUserId, contextToken, text, clientIdPrefix)
@@ -256,6 +258,7 @@ public final class ILinkBot implements AutoCloseable {
      * @param item message item to send
      * @return send response
      */
+    @Override
     public SendMessageResponse send(String toUserId, String contextToken, MessageItem item) {
         requireNonBlank(toUserId, "toUserId");
         requireNonBlank(contextToken, "contextToken");
@@ -287,6 +290,7 @@ public final class ILinkBot implements AutoCloseable {
      * @param status       typing status, see {@link TypingStatus}
      * @return sendtyping response
      */
+    @Override
     public SendTypingResponse sendTyping(String toUserId, String contextToken, TypingStatus status) {
         requireNonBlank(toUserId, "toUserId");
         requireNonBlank(contextToken, "contextToken");
@@ -523,7 +527,7 @@ public final class ILinkBot implements AutoCloseable {
                 continue;
             }
             try {
-                handler.handle(message);
+                handler.handle(message, this);
             } catch (Exception e) {
                 LOG.error("Message handler failed, messageId={}", message.messageId(), e);
                 return false;

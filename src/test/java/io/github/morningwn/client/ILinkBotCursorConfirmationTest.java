@@ -27,7 +27,7 @@ class ILinkBotCursorConfirmationTest {
         RetrySameCursorClient client = new RetrySameCursorClient(config);
         ILinkBot bot = new ILinkBot(client, config, defaultSessionHandler());
 
-        bot.startAutoPull(message -> {
+        bot.startAutoPull((message, sender) -> {
             throw new IllegalStateException("simulated handler failure");
         });
 
@@ -64,7 +64,7 @@ class ILinkBotCursorConfirmationTest {
         };
 
         ILinkBot bot = new ILinkBot(client, config, sessionHandler);
-        bot.startAutoPull(message -> {
+        bot.startAutoPull((message, sender) -> {
         });
 
         assertTrue(client.awaitSecondCall(1, TimeUnit.SECONDS), "second getUpdates call should happen");

@@ -102,7 +102,7 @@ public final class WebQuickStartExampleTest {
              ILinkBot bot = new ILinkBot(config, sessionHandler)) {
             Runtime.getRuntime().addShutdownHook(new Thread(bot::close));
 
-            bot.startAutoPull(message -> onInboundMessage(message, latestReplyTarget, eventStore, cdnClient));
+            bot.startAutoPull((message, sender) -> onInboundMessage(message, latestReplyTarget, eventStore, cdnClient));
 
             HttpServer server = createServer(port, bot, sessionHandler, latestReplyTarget, eventStore, DOWNLOAD_DIR);
             Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop(0)));

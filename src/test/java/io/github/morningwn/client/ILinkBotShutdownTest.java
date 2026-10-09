@@ -36,7 +36,7 @@ class ILinkBotShutdownTest {
         };
 
         ILinkBot bot = new ILinkBot(client, config, sessionHandler);
-        bot.startAutoPull(message -> {
+        bot.startAutoPull((message, sender) -> {
         });
 
         assertTrue(enteredGetUpdates.await(1, TimeUnit.SECONDS), "auto pull should enter getUpdates");

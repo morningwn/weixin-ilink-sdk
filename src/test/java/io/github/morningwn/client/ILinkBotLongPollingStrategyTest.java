@@ -36,7 +36,7 @@ class ILinkBotLongPollingStrategyTest {
         };
 
         ILinkBot bot = new ILinkBot(client, config, sessionHandler);
-        bot.startAutoPull(message -> {
+        bot.startAutoPull((message, sender) -> {
         });
 
         assertTrue(client.awaitSecondCall(1, TimeUnit.SECONDS), "second getUpdates call should happen");

@@ -56,7 +56,7 @@ public final class QuickStartExampleTest {
         try (ILinkBot bot = new ILinkBot(config, sessionHandler)) {
             Runtime.getRuntime().addShutdownHook(new Thread(bot::close));
 
-            bot.startAutoPull(message -> {
+            bot.startAutoPull((message, sender) -> {
                 if (message.itemList() == null) {
                     return;
                 }
