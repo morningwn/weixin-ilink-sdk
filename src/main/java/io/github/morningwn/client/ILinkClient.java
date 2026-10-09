@@ -72,6 +72,7 @@ public class ILinkClient implements AutoCloseable {
 
     private static final String PARAM_BOT_TYPE = "bot_type";
     private static final String PARAM_QRCODE = "qrcode";
+    private static final String PARAM_VERIFY_CODE = "verify_code";
     private static final String PARAM_ENCRYPTED_QUERY_PARAM = "encrypted_query_param";
     private static final String PARAM_FILE_KEY = "filekey";
 
@@ -173,7 +174,7 @@ public class ILinkClient implements AutoCloseable {
      * @return qr status response
      */
     public QrCodeStatusResponse getQrcodeStatus(String qrcode) {
-        return getQrcodeStatus(qrcode, config.getBaseUrl());
+        return getQrcodeStatus(qrcode, config.getBaseUrl(), null);
     }
 
     /**
@@ -184,8 +185,23 @@ public class ILinkClient implements AutoCloseable {
      * @return qr status response
      */
     public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl) {
+        return getQrcodeStatus(qrcode, baseUrl, null);
+    }
+
+    /**
+     * Calls get_qrcode_status using custom base URL and an optional verification code.
+     *
+     * @param qrcode QR polling token
+     * @param baseUrl target base URL, used for redirect host handling
+     * @param verifyCode one-time verification code, or {@code null} when not required
+     * @return qr status response
+     */
+    public QrCodeStatusResponse getQrcodeStatus(String qrcode, String baseUrl, String verifyCode) {
         requireNonBlank(qrcode, "qrcode");
         String path = PATH_GET_QRCODE_STATUS + QUERY_SEPARATOR + PARAM_QRCODE + QUERY_ASSIGN + urlEncode(qrcode);
+        if (verifyCode != null && !verifyCode.isBlank()) {
+            path += QUERY_AND + PARAM_VERIFY_CODE + QUERY_ASSIGN + urlEncode(verifyCode);
+        }
         LOG.debug("Polling qrcode status, baseUrl={}", baseUrl);
         HttpRequest request = withOptionalHeaders(HttpRequest.newBuilder()
                 .uri(URI.create(buildUrl(baseUrl, path)))

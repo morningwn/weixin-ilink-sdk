@@ -22,6 +22,14 @@ public enum QrCodeStatus {
      */
     SCANED("scaned"),
     /**
+     * QR login requires a verification code.
+     */
+    NEED_VERIFYCODE("need_verifycode"),
+    /**
+     * Verification-code attempts are blocked.
+     */
+    VERIFY_CODE_BLOCKED("verify_code_blocked"),
+    /**
      * QR scanned and redirect host should be used.
      */
     SCANED_BUT_REDIRECT("scaned_but_redirect"),

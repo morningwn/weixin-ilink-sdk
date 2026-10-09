@@ -61,6 +61,31 @@ public interface SessionHandler {
     }
 
     /**
+     * Notifies the application that QR login requires a verification code.
+     *
+     * <p>The SDK calls this at most once for each QR code. Applications can use
+     * this callback to prompt the user and make the submitted code available from
+     * {@link #loadVerificationCode(String)}.</p>
+     *
+     * @param qrCodeResponse current QR code payload
+     */
+    default void onVerificationCodeRequired(QrCodeResponse qrCodeResponse) {
+    }
+
+    /**
+     * Loads a one-time verification code submitted for a QR login.
+     *
+     * <p>Return {@code null} until the user has submitted a code. Implementations
+     * should consume the returned code and must not log or persist it.</p>
+     *
+     * @param qrcode QR polling token associated with the verification challenge
+     * @return a verification code, or {@code null} when one is not available
+     */
+    default String loadVerificationCode(String qrcode) {
+        return null;
+    }
+
+    /**
      * Confirms whether the suggested getupdates cursor can be committed.
      *
      * <p>Called after a batch response is handled and before bot updates internal cursor.

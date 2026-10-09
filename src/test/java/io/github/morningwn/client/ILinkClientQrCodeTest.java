@@ -101,6 +101,25 @@ class ILinkClientQrCodeTest {
         }
     }
 
+    @Test
+    void getQrcodeStatusShouldUrlEncodeVerificationCode() throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        HttpServer server = startStatusServer(exchange -> {
+            query.set(exchange.getRequestURI().getRawQuery());
+            byte[] response = "{\"status\":\"wait\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        try {
+            new ILinkClient(configFor(server)).getQrcodeStatus("qr token", configFor(server).getBaseUrl(), "123 456+");
+
+            assertEquals("qrcode=qr+token&verify_code=123+456%2B", query.get());
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static ILinkClientConfig configFor(HttpServer server) {
         return ILinkClientConfig.builder()
                 .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
@@ -110,6 +129,13 @@ class ILinkClientQrCodeTest {
     private static HttpServer startServer(ExchangeHandler handler) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/ilink/bot/get_bot_qrcode", handler::handle);
+        server.start();
+        return server;
+    }
+
+    private static HttpServer startStatusServer(ExchangeHandler handler) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ilink/bot/get_qrcode_status", handler::handle);
         server.start();
         return server;
     }

@@ -3,6 +3,7 @@ package io.github.morningwn.client;
 import io.github.morningwn.exception.AlreadyBoundException;
 import io.github.morningwn.exception.ILinkException;
 import io.github.morningwn.exception.SessionExpiredException;
+import io.github.morningwn.exception.VerificationCodeBlockedException;
 import io.github.morningwn.handler.MessageHandler;
 import io.github.morningwn.handler.SessionHandler;
 import io.github.morningwn.protocol.BaseInfo;
@@ -579,12 +580,33 @@ public final class ILinkBot implements AutoCloseable {
             notifyQrcode(qrCodeResponse);
 
             String qrBaseUrl = config.getBaseUrl();
+            boolean verificationCodeRequested = false;
+            String verificationCode = null;
             while (true) {
-                QrCodeStatusResponse statusResponse = client.getQrcodeStatus(qrCodeResponse.qrcode(), qrBaseUrl);
+                QrCodeStatusResponse statusResponse = client.getQrcodeStatus(
+                        qrCodeResponse.qrcode(),
+                        qrBaseUrl,
+                        verificationCode
+                );
+                verificationCode = null;
                 QrCodeStatus status = statusResponse.status();
                 if (status == null || status == QrCodeStatus.WAIT || status == QrCodeStatus.SCANED) {
                     sleepQrPolling();
                     continue;
+                }
+                if (status == QrCodeStatus.NEED_VERIFYCODE) {
+                    if (!verificationCodeRequested) {
+                        notifyVerificationCodeRequired(qrCodeResponse);
+                        verificationCodeRequested = true;
+                    }
+                    verificationCode = loadVerificationCode(qrCodeResponse.qrcode());
+                    if (verificationCode == null || verificationCode.isBlank()) {
+                        sleepQrPolling();
+                    }
+                    continue;
+                }
+                if (status == QrCodeStatus.VERIFY_CODE_BLOCKED) {
+                    throw new VerificationCodeBlockedException();
                 }
                 if (status == QrCodeStatus.SCANED_BUT_REDIRECT) {
                     qrBaseUrl = normalizeQrBaseUrl(statusResponse.redirectHost(), qrBaseUrl);
@@ -657,6 +679,29 @@ public final class ILinkBot implements AutoCloseable {
         } catch (Exception e) {
             LOG.warn("Session handler loadRecentBotTokens failed", e);
             return List.of();
+        }
+    }
+
+    private void notifyVerificationCodeRequired(QrCodeResponse qrCodeResponse) {
+        if (sessionHandler == null) {
+            return;
+        }
+        try {
+            sessionHandler.onVerificationCodeRequired(qrCodeResponse);
+        } catch (Exception e) {
+            LOG.warn("Session handler onVerificationCodeRequired failed", e);
+        }
+    }
+
+    private String loadVerificationCode(String qrcode) {
+        if (sessionHandler == null) {
+            return null;
+        }
+        try {
+            return sessionHandler.loadVerificationCode(qrcode);
+        } catch (Exception e) {
+            LOG.warn("Session handler loadVerificationCode failed", e);
+            return null;
         }
     }
 
