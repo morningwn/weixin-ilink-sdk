@@ -61,6 +61,14 @@ class ILinkBotLongPollingStrategyTest {
         }
 
         @Override
+        void notifyStart(ILinkAuthSession session) {
+        }
+
+        @Override
+        void notifyStop(ILinkAuthSession session) {
+        }
+
+        @Override
         public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf, Duration timeout) {
             requestedTimeouts.add(timeout);
             int call = calls.incrementAndGet();

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,7 +36,7 @@ class ILinkBotVerificationCodeTest {
 
         assertEquals(1, sessionHandler.verificationRequiredCalls);
         assertEquals(2, sessionHandler.loadVerificationCodeCalls);
-        assertEquals(List.of(null, "123 456", "123 456"), client.verificationCodes);
+        assertEquals(Arrays.asList(null, "123 456", "123 456"), client.verificationCodes);
         assertEquals("confirmed-token", sessionHandler.persistedSession.token());
     }
 

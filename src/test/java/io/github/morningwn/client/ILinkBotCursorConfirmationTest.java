@@ -139,6 +139,14 @@ class ILinkBotCursorConfirmationTest {
         }
 
         @Override
+        void notifyStart(ILinkAuthSession session) {
+        }
+
+        @Override
+        void notifyStop(ILinkAuthSession session) {
+        }
+
+        @Override
         public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf, Duration timeout) {
             requestedBuffers.add(getUpdatesBuf == null ? "" : getUpdatesBuf);
             int call = calls.incrementAndGet();
@@ -180,6 +188,14 @@ class ILinkBotCursorConfirmationTest {
 
         private RejectCommitClient(ILinkClientConfig config) {
             super(config);
+        }
+
+        @Override
+        void notifyStart(ILinkAuthSession session) {
+        }
+
+        @Override
+        void notifyStop(ILinkAuthSession session) {
         }
 
         @Override

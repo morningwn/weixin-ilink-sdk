@@ -65,7 +65,7 @@ class ILinkBotQrLoginTest {
         }
 
         @Override
-        public QrCodeStatusResponse getQrCodeStatus(String qrcode, String baseUrl) {
+        public QrCodeStatusResponse getQrCodeStatus(String qrcode, String baseUrl, String verifyCode) {
             return new QrCodeStatusResponse(
                     QrCodeStatus.CONFIRMED,
                     null,

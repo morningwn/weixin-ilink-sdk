@@ -67,6 +67,14 @@ class ILinkBotShutdownTest {
         }
 
         @Override
+        void notifyStart(ILinkAuthSession session) {
+        }
+
+        @Override
+        void notifyStop(ILinkAuthSession session) {
+        }
+
+        @Override
         public GetUpdatesResponse getUpdates(ILinkAuthSession session, String getUpdatesBuf, Duration timeout) {
             enteredGetUpdates.countDown();
             try {
