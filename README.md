@@ -124,4 +124,10 @@ mvn -q -DskipTests compile test-compile exec:java \
 
 默认访问地址：`http://127.0.0.1:8088`
 
+## CI 与发布校验
+
+- `CI` 工作流仅在推送 `v*` 标签时执行测试。
+- `CodeQL` 工作流执行 Java 静态安全分析，并每周复查一次。
+- 发布校验可手动触发：标签必须与 `pom.xml` 的非 SNAPSHOT 版本一致，并验证二进制、源码和 Javadoc 工件。该工作流不会发布到 Maven Central，也不会使用 GPG 私钥。
+
 

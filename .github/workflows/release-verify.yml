@@ -1,0 +1,35 @@
+name: Release verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="$(mvn --quiet --force-stdout help:evaluate -Dexpression=project.version)"
+          test "${VERSION}" = "${VERSION%-SNAPSHOT}"
+          test "${RELEASE_TAG}" = "v${VERSION}"
+      - name: Build release artifacts
+        run: mvn --batch-mode --no-transfer-progress -Dgpg.skip=true verify
+      - name: Verify required artifacts
+        run: |
+          VERSION="$(mvn --quiet --force-stdout help:evaluate -Dexpression=project.version)"
+          test -f "target/weixin-ilink-sdk-${VERSION}.jar"
+          test -f "target/weixin-ilink-sdk-${VERSION}-sources.jar"
+          test -f "target/weixin-ilink-sdk-${VERSION}-javadoc.jar"
